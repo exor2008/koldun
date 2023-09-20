@@ -296,8 +296,8 @@ async fn main(_spawner: Spawner) {
     wr.set_high();
 
     // Data
-    let start: u16 = 51;
-    let end: u16 = 52;
+    let start: u16 = 100;
+    let end: u16 = 101;
     let data = [
         ((start >> 8) as u8) as u16,
         ((start & 0xff) as u8) as u16,
