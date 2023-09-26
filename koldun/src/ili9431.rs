@@ -2,12 +2,12 @@ use embassy_rp::dma::{AnyChannel, Channel};
 use embassy_rp::gpio::Level;
 use embassy_rp::pio::Common;
 use embassy_rp::pio::{
-    Config, Direction, FifoJoin, Instance, Pin, PioPin, ShiftConfig, ShiftDirection, StateMachine,
+    Config, Direction, FifoJoin, Instance, PioPin, ShiftConfig, ShiftDirection, StateMachine,
 };
 
 use embassy_rp::{into_ref, Peripheral, PeripheralRef};
-use embassy_time::{Duration, Timer};
 use fixed::types::U24F8;
+use heapless::Vec;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Command {
@@ -97,8 +97,6 @@ pub enum Command {
 pub struct ILI9431<'a, P: Instance, const N: usize> {
     dma: PeripheralRef<'a, AnyChannel>,
     sm: StateMachine<'a, P, N>,
-    cs: Pin<'a, P>,
-    dc: Pin<'a, P>,
 }
 
 impl<'a, P: Instance, const N: usize> ILI9431<'a, P, N> {
@@ -153,9 +151,18 @@ impl<'a, P: Instance, const N: usize> ILI9431<'a, P, N> {
         let prg_command = pio_proc::pio_asm!(
             r#"
             .wrap_target
-                set pins, 0b01
+                set pins, 0b0100 ; wr - ON rd - OFF dc - COMMAND cs - ON
                 out pins, 16 
-                set pins, 0b11
+                set pins, 0b1100 ; wr - OFF rd - OFF dc - COMMAND cs - ON
+                jmp !osre data
+                jmp end
+            data:
+                set pins, 0b0110 ; wr - ON rd - OFF dc - DATA cs - ON
+                out pins 16
+                set pins, 0b1110 ; wr - OFF rd - OFF dc - DATA cs - ON
+                jmp !osre data
+            end:
+                set pins, 0b1111 ; wr - OFF rd - OFF dc - DATA cs - OFF
             .wrap
             "#,
         );
@@ -176,7 +183,7 @@ impl<'a, P: Instance, const N: usize> ILI9431<'a, P, N> {
             &db0, &db1, &db2, &db3, &db4, &db5, &db6, &db7, &db8, &db9, &db10, &db11, &db12, &db13,
             &db14, &db15,
         ]);
-        cfg.set_set_pins(&[&rd, &wr]);
+        cfg.set_set_pins(&[&cs, &dc, &rd, &wr]);
 
         cfg.shift_out = ShiftConfig {
             auto_fill: true,
@@ -192,25 +199,17 @@ impl<'a, P: Instance, const N: usize> ILI9431<'a, P, N> {
         ILI9431 {
             dma: dma.map_into(),
             sm,
-            cs,
-            dc,
         }
     }
 
     pub async fn write_command(&mut self, command: Command, words: &[u16]) {
-        self.sm.set_pins(Level::Low, &[&self.cs, &self.dc]);
+        let mut a: Vec<u16, { 32 * 32 + 1 }> = Vec::new();
+        a.extend_from_slice(&[command as u16]).unwrap();
+        a.extend_from_slice(words).unwrap();
 
         self.sm
             .tx()
-            .dma_push(self.dma.reborrow(), &[command as u16])
+            .dma_push(self.dma.reborrow(), a.as_slice())
             .await;
-
-        self.sm.set_pins(Level::High, &[&self.dc]);
-
-        if !words.is_empty() {
-            self.sm.tx().dma_push(self.dma.reborrow(), words).await;
-        }
-        Timer::after(Duration::from_millis(1)).await;
-        self.sm.set_pins(Level::High, &[&self.cs]);
     }
 }

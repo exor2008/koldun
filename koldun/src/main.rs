@@ -9,7 +9,7 @@ use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio::{InterruptHandler, Pio};
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::{pixelcolor::Rgb565, prelude::*};
 use heapless::Vec;
 use koldun::ili9431::{Command, ILI9431};
@@ -82,8 +82,8 @@ async fn main(_spawner: Spawner) {
     display.write_command(Command::DisplayOn, &[]).await;
     display.write_command(Command::IdleModeOff, &[]).await;
 
-    let start: u16 = 0;
-    let end: u16 = 31;
+    let start: u16 = 0 + 10;
+    let end: u16 = 31 + 10;
     let data = [
         ((start >> 8) as u8) as u16,
         ((start & 0xff) as u8) as u16,
@@ -94,8 +94,8 @@ async fn main(_spawner: Spawner) {
         .write_command(Command::ColumnAddressSet, &data)
         .await;
 
-    let start: u16 = 0;
-    let end: u16 = 31;
+    let start: u16 = 0 + 10;
+    let end: u16 = 31 + 10;
     let data = [
         ((start >> 8) as u8) as u16,
         ((start & 0xff) as u8) as u16,
@@ -107,13 +107,48 @@ async fn main(_spawner: Spawner) {
     let data = include_bytes!("./face.tga");
     let tga: Tga<Rgb565> = Tga::from_slice(data).unwrap();
 
-    let p: Vec<_, { 240 * 260 }> = tga.pixels().map(|p| convert(p)).collect();
+    let p: Vec<_, { 32 * 32 }> = tga.pixels().map(|p| convert(p)).collect();
 
     display
         .write_command(Command::MemoryWrite, p.as_slice())
         .await;
 
-    loop {}
+    let mut c = 0;
+    let mut ticker = Ticker::every(Duration::from_hz(10));
+    loop {
+        let start: u16 = 0 + 50;
+        let end: u16 = 31 + 50;
+        let data = [
+            ((start >> 8) as u8) as u16,
+            ((start & 0xff) as u8) as u16,
+            ((end >> 8) as u8) as u16,
+            ((end & 0xff) as u8) as u16,
+        ];
+        display
+            .write_command(Command::ColumnAddressSet, &data)
+            .await;
+
+        let start: u16 = 0 + 50;
+        let end: u16 = 31 + 50;
+        let data = [
+            ((start >> 8) as u8) as u16,
+            ((start & 0xff) as u8) as u16,
+            ((end >> 8) as u8) as u16,
+            ((end & 0xff) as u8) as u16,
+        ];
+        display.write_command(Command::PageAddressSet, &data).await;
+
+        let b: &[u16];
+        if c % 2 == 0 {
+            b = &[0u16; 32 * 32];
+        } else {
+            b = p.as_slice();
+        }
+
+        display.write_command(Command::MemoryWrite, b).await;
+        c += 1;
+        ticker.next().await;
+    }
 }
 
 fn convert(p: Pixel<Rgb565>) -> u16 {
