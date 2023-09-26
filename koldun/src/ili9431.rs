@@ -152,16 +152,16 @@ impl<'a, P: Instance, const N: usize> ILI9431<'a, P, N> {
             r#"
             .side_set 4 opt
             .wrap_target
-                nop                 side 0b0100 ; wr - ON rd - OFF dc - COMMAND cs - ON
+                nop                 side 0b0100 ; wr - ON   rd - OFF dc - COMMAND   cs - ON
                 out pins    16 
-                jmp !osre   data    side 0b1100 ; wr - OFF rd - OFF dc - COMMAND cs - ON
+                jmp !osre   data    side 0b1100 ; wr - OFF  rd - OFF dc - COMMAND   cs - ON
                 jmp end
             data:
-                nop                 side 0b0110 ; wr - ON rd - OFF dc - DATA cs - ON
+                nop                 side 0b0110 ; wr - ON   rd - OFF dc - DATA      cs - ON
                 out pins    16 
-                jmp !osre   data    side 0b1110 ; wr - OFF rd - OFF dc - DATA cs - ON
+                jmp !osre   data    side 0b1110 ; wr - OFF  rd - OFF dc - DATA      cs - ON
             end:
-                nop                 side 0b1111 ; wr - OFF rd - OFF dc - DATA cs - OFF
+                nop                 side 0b1111 ; wr - OFF  rd - OFF dc - DATA      cs - OFF
             .wrap
             "#,
         );
