@@ -150,19 +150,18 @@ impl<'a, P: Instance, const N: usize> ILI9431<'a, P, N> {
 
         let prg_command = pio_proc::pio_asm!(
             r#"
+            .side_set 4 opt
             .wrap_target
-                set pins, 0b0100 ; wr - ON rd - OFF dc - COMMAND cs - ON
-                out pins, 16 
-                set pins, 0b1100 ; wr - OFF rd - OFF dc - COMMAND cs - ON
-                jmp !osre data
+                nop                 side 0b0100 ; wr - ON rd - OFF dc - COMMAND cs - ON
+                out pins    16 
+                jmp !osre   data    side 0b1100 ; wr - OFF rd - OFF dc - COMMAND cs - ON
                 jmp end
             data:
-                set pins, 0b0110 ; wr - ON rd - OFF dc - DATA cs - ON
-                out pins 16
-                set pins, 0b1110 ; wr - OFF rd - OFF dc - DATA cs - ON
-                jmp !osre data
+                nop                 side 0b0110 ; wr - ON rd - OFF dc - DATA cs - ON
+                out pins    16 
+                jmp !osre   data    side 0b1110 ; wr - OFF rd - OFF dc - DATA cs - ON
             end:
-                set pins, 0b1111 ; wr - OFF rd - OFF dc - DATA cs - OFF
+                nop                 side 0b1111 ; wr - OFF rd - OFF dc - DATA cs - OFF
             .wrap
             "#,
         );
@@ -178,12 +177,14 @@ impl<'a, P: Instance, const N: usize> ILI9431<'a, P, N> {
         sm.set_pins(Level::Low, &[&dc]);
 
         let mut cfg = Config::default();
-        cfg.use_program(&pio.load_program(&prg_command.program), &[]);
+        cfg.use_program(
+            &pio.load_program(&prg_command.program),
+            &[&cs, &dc, &rd, &wr],
+        );
         cfg.set_out_pins(&[
             &db0, &db1, &db2, &db3, &db4, &db5, &db6, &db7, &db8, &db9, &db10, &db11, &db12, &db13,
             &db14, &db15,
         ]);
-        cfg.set_set_pins(&[&cs, &dc, &rd, &wr]);
 
         cfg.shift_out = ShiftConfig {
             auto_fill: true,
