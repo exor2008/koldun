@@ -5,77 +5,28 @@
 use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-// use embassy_rp::clocks::{clk_sys_freq, pll_sys_freq, PllConfig, SysClkConfig};
+use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Level, Output};
+use embassy_rp::peripherals::PIO0;
+use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_time::{Duration, Timer};
+use embedded_graphics::{pixelcolor::Rgb565, prelude::*};
+use heapless::Vec;
+use koldun::ili9431::{Command, ILI9431};
 use panic_probe as _;
+use tinytga::Tga;
 
-macro_rules! write_bit {
-    ($output_pin:expr, $bit_set:expr) => {
-        if $bit_set {
-            $output_pin.set_high();
-        } else {
-            $output_pin.set_low();
-        }
-    };
-}
-
-macro_rules! write_2bytes {
-    ($byte:expr, $db0:expr,$db1:expr,$db2:expr,$db3:expr,$db4:expr,$db5:expr,$db6:expr,$db7:expr,$db8:expr,$db9:expr,$db10:expr,$db11:expr,$db12:expr,$db13:expr,$db14:expr,$db15:expr) => {
-        write_bit!($db0, (1 << 0) & $byte != 0);
-        write_bit!($db1, (1 << 1) & $byte != 0);
-        write_bit!($db2, (1 << 2) & $byte != 0);
-        write_bit!($db3, (1 << 3) & $byte != 0);
-        write_bit!($db4, (1 << 4) & $byte != 0);
-        write_bit!($db5, (1 << 5) & $byte != 0);
-        write_bit!($db6, (1 << 6) & $byte != 0);
-        write_bit!($db7, (1 << 7) & $byte != 0);
-        write_bit!($db8, (1 << 8) & $byte != 0);
-        write_bit!($db9, (1 << 9) & $byte != 0);
-        write_bit!($db10, (1 << 10) & $byte != 0);
-        write_bit!($db11, (1 << 11) & $byte != 0);
-        write_bit!($db12, (1 << 12) & $byte != 0);
-        write_bit!($db13, (1 << 13) & $byte != 0);
-        write_bit!($db14, (1 << 14) & $byte != 0);
-        write_bit!($db15, (1 << 15) & $byte != 0);
-    };
-}
-
-fn encode_rgb565_16bit(pixel: &(u8, u8, u8)) -> u16 {
-    (((pixel.0 & 0b11111) as u16) << 10)
-        | (((pixel.1 & 0b111111) as u16) << 4)
-        | (pixel.2 & 0b11111) as u16
-}
+bind_interrupts!(struct Irqs {
+    PIO0_IRQ_0 => InterruptHandler<PIO0>;
+});
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
     info!("Start");
     let p = embassy_rp::init(Default::default());
 
-    let mut db0 = Output::new(p.PIN_2, Level::Low);
-    let mut db1 = Output::new(p.PIN_3, Level::Low);
-    let mut db2 = Output::new(p.PIN_4, Level::Low);
-    let mut db3 = Output::new(p.PIN_5, Level::Low);
-    let mut db4 = Output::new(p.PIN_6, Level::Low);
-    let mut db5 = Output::new(p.PIN_7, Level::Low);
-    let mut db6 = Output::new(p.PIN_8, Level::Low);
-    let mut db7 = Output::new(p.PIN_9, Level::Low);
-
-    let mut db8 = Output::new(p.PIN_10, Level::Low);
-    let mut db9 = Output::new(p.PIN_11, Level::Low);
-    let mut db10 = Output::new(p.PIN_12, Level::Low);
-    let mut db11 = Output::new(p.PIN_13, Level::Low);
-    let mut db12 = Output::new(p.PIN_16, Level::Low);
-    let mut db13 = Output::new(p.PIN_17, Level::Low);
-    let mut db14 = Output::new(p.PIN_18, Level::Low);
-    let mut db15 = Output::new(p.PIN_19, Level::Low);
-
-    let mut dc = Output::new(p.PIN_14, Level::High);
-    let mut reset = Output::new(p.PIN_15, Level::Low);
-    let mut cs = Output::new(p.PIN_22, Level::High);
-    let mut rd = Output::new(p.PIN_26, Level::High);
-    let mut wr = Output::new(p.PIN_27, Level::High);
-    let mut led = Output::new(p.PIN_28, Level::Low);
+    let mut led = Output::new(p.PIN_26, Level::Low);
+    let mut reset = Output::new(p.PIN_27, Level::Low);
 
     // reset
     reset.set_low();
@@ -85,273 +36,87 @@ async fn main(_spawner: Spawner) {
     led.set_high();
     info!("Begin");
 
-    // -> COLOR MODE
-    rd.set_high();
-    wr.set_high();
-    cs.set_low();
+    let Pio {
+        mut common, sm0, ..
+    } = Pio::new(p.PIO0, Irqs);
 
-    let command: u16 = 0x3A;
-
-    // Command
-    dc.set_low();
-    wr.set_low();
-
-    write_2bytes!(
-        command, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14,
-        db15
+    let mut display = ILI9431::new(
+        &mut common,
+        sm0,
+        p.DMA_CH0,
+        p.PIN_2,
+        p.PIN_3,
+        p.PIN_4,
+        p.PIN_5,
+        p.PIN_6,
+        p.PIN_7,
+        p.PIN_8,
+        p.PIN_9,
+        p.PIN_10,
+        p.PIN_11,
+        p.PIN_12,
+        p.PIN_13,
+        p.PIN_14,
+        p.PIN_15,
+        p.PIN_16,
+        p.PIN_17,
+        p.PIN_18,
+        p.PIN_19,
+        p.PIN_20,
+        p.PIN_21,
     );
-    wr.set_high();
 
-    // Data
-    let data: u16 = 0b01010101;
+    display
+        .write_command(Command::InterfacePixelFormat, &[0b01010101])
+        .await;
 
-    dc.set_high();
+    display.write_command(Command::SleepOut, &[]).await;
+    display
+        .write_command(Command::DisplayInversionOff, &[])
+        .await;
+    display
+        .write_command(Command::MemoryAccessControl, &[0b10001000])
+        .await;
 
-    wr.set_low();
-    write_2bytes!(
-        data, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14, db15
-    );
-    wr.set_high();
+    display.write_command(Command::NormalDisplayMode, &[]).await;
+    display.write_command(Command::DisplayOn, &[]).await;
+    display.write_command(Command::IdleModeOff, &[]).await;
 
-    cs.set_high();
-
-    // -> SLEEP OUT
-    rd.set_high();
-    wr.set_high();
-    cs.set_low();
-
-    let command: u16 = 0x11;
-
-    // Command
-    dc.set_low();
-    wr.set_low();
-
-    write_2bytes!(
-        command, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14,
-        db15
-    );
-    wr.set_high();
-
-    cs.set_high();
-
-    // -> DISPLAY INVERSION OFF
-    rd.set_high();
-    wr.set_high();
-    cs.set_low();
-
-    let command: u16 = 0x20;
-
-    // Command
-    dc.set_low();
-    wr.set_low();
-
-    write_2bytes!(
-        command, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14,
-        db15
-    );
-    wr.set_high();
-
-    cs.set_high();
-
-    // -> MEMORY ACCESS CONTROL
-    rd.set_high();
-    wr.set_high();
-    cs.set_low();
-
-    let command: u16 = 0x36;
-
-    // Command
-    dc.set_low();
-    wr.set_low();
-
-    write_2bytes!(
-        command, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14,
-        db15
-    );
-    wr.set_high();
-
-    // Data
-    let data: u16 = 0b10001000;
-    dc.set_high();
-
-    wr.set_low();
-    write_2bytes!(
-        data, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14, db15
-    );
-    wr.set_high();
-
-    cs.set_high();
-
-    // -> NORMAL DISPALY MODE
-    rd.set_high();
-    wr.set_high();
-    cs.set_low();
-
-    let command: u16 = 0x13;
-
-    // Command
-    dc.set_low();
-    wr.set_low();
-
-    write_2bytes!(
-        command, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14,
-        db15
-    );
-    wr.set_high();
-
-    cs.set_high();
-
-    // -> DISPLAY ON
-    rd.set_high();
-    wr.set_high();
-    cs.set_low();
-
-    let command: u16 = 0x29;
-
-    // Command
-    dc.set_low();
-    wr.set_low();
-
-    write_2bytes!(
-        command, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14,
-        db15
-    );
-    wr.set_high();
-
-    cs.set_high();
-
-    // -> IDDLE OFF
-    rd.set_high();
-    wr.set_high();
-    cs.set_low();
-
-    let command: u16 = 0x38;
-
-    // Command
-    dc.set_low();
-    wr.set_low();
-
-    write_2bytes!(
-        command, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14,
-        db15
-    );
-    wr.set_high();
-
-    cs.set_high();
-
-    // -> COLUMN ADDRESS SET
-    rd.set_high();
-    wr.set_high();
-    cs.set_low();
-
-    let command: u16 = 0x2A;
-
-    // Command
-    dc.set_low();
-    wr.set_low();
-
-    write_2bytes!(
-        command, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14,
-        db15
-    );
-    wr.set_high();
-
-    // Data
-    let start: u16 = 50;
-    let end: u16 = 51;
+    let start: u16 = 0;
+    let end: u16 = 31;
     let data = [
         ((start >> 8) as u8) as u16,
         ((start & 0xff) as u8) as u16,
         ((end >> 8) as u8) as u16,
         ((end & 0xff) as u8) as u16,
     ];
+    display
+        .write_command(Command::ColumnAddressSet, &data)
+        .await;
 
-    dc.set_high();
-
-    for word in data.into_iter() {
-        wr.set_low();
-        write_2bytes!(
-            word, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14,
-            db15
-        );
-        wr.set_high();
-    }
-    cs.set_high();
-
-    // -> PAGE ADDRESS SET
-    rd.set_high();
-    wr.set_high();
-    cs.set_low();
-
-    let command: u16 = 0x2B;
-
-    // Command
-    dc.set_low();
-    wr.set_low();
-
-    write_2bytes!(
-        command, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14,
-        db15
-    );
-    wr.set_high();
-
-    // Data
-    let start: u16 = 100;
-    let end: u16 = 101;
+    let start: u16 = 0;
+    let end: u16 = 31;
     let data = [
         ((start >> 8) as u8) as u16,
         ((start & 0xff) as u8) as u16,
         ((end >> 8) as u8) as u16,
         ((end & 0xff) as u8) as u16,
     ];
+    display.write_command(Command::PageAddressSet, &data).await;
 
-    dc.set_high();
+    let data = include_bytes!("./face.tga");
+    let tga: Tga<Rgb565> = Tga::from_slice(data).unwrap();
 
-    for word in data.into_iter() {
-        wr.set_low();
-        write_2bytes!(
-            word, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14,
-            db15
-        );
-        wr.set_high();
-    }
-    cs.set_high();
+    let p: Vec<_, { 240 * 260 }> = tga.pixels().map(|p| convert(p)).collect();
 
-    // -> WRITE PIXEL DATA
-    rd.set_high();
-    wr.set_high();
-    cs.set_low();
-
-    let command: u16 = 0x2C;
-
-    // Command
-    dc.set_low();
-    wr.set_low();
-
-    write_2bytes!(
-        command, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14,
-        db15
-    );
-    wr.set_high();
-
-    // Data
-    let data: u16 = encode_rgb565_16bit(&(255, 255, 255));
-
-    dc.set_high();
-
-    wr.set_low();
-    write_2bytes!(
-        data, db0, db1, db2, db3, db4, db5, db6, db7, db8, db9, db10, db11, db12, db13, db14, db15
-    );
-    wr.set_high();
-
-    cs.set_high();
-
-    Timer::after(Duration::from_millis(5000)).await;
-    // led.set_low();
-    info!("End");
-
-    // Timer::after(Duration::from_millis(500)).await;
+    display
+        .write_command(Command::MemoryWrite, p.as_slice())
+        .await;
 
     loop {}
+}
+
+fn convert(p: Pixel<Rgb565>) -> u16 {
+    let b = p.1.to_ne_bytes();
+    (b[1] as u16) << 8 | (b[0]) as u16
 }
