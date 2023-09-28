@@ -10,9 +10,11 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_time::{Duration, Ticker, Timer};
+use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::{pixelcolor::Rgb565, prelude::*};
 use heapless::Vec;
-use koldun::ili9431::{Command, ILI9431};
+use koldun::ili9431::Order;
+use koldun::ili9431::{pio_parallel::PioParallel16, Commands, Ili9431, PixelFormat};
 use panic_probe as _;
 use tinytga::Tga;
 
@@ -40,7 +42,7 @@ async fn main(_spawner: Spawner) {
         mut common, sm0, ..
     } = Pio::new(p.PIO0, Irqs);
 
-    let mut display = ILI9431::new(
+    let pio_interface = PioParallel16::new(
         &mut common,
         sm0,
         p.DMA_CH0,
@@ -66,87 +68,50 @@ async fn main(_spawner: Spawner) {
         p.PIN_21,
     );
 
+    let mut display = Ili9431::new(pio_interface);
+    display.set_pixel_format(PixelFormat::Bit16).await;
+    display.sleep_out().await;
+    display.inversion_off().await;
     display
-        .write_command(Command::InterfacePixelFormat, &[0b01010101])
+        .memory_access_control(
+            Order::Reverse,
+            Order::default(),
+            Order::default(),
+            Order::default(),
+            Order::default(),
+            Order::Reverse,
+        )
         .await;
-
-    display.write_command(Command::SleepOut, &[]).await;
-    display
-        .write_command(Command::DisplayInversionOff, &[])
-        .await;
-    display
-        .write_command(Command::MemoryAccessControl, &[0b10001000])
-        .await;
-
-    display.write_command(Command::NormalDisplayMode, &[]).await;
-    display.write_command(Command::DisplayOn, &[]).await;
-    display.write_command(Command::IdleModeOff, &[]).await;
-
-    let start: u16 = 0 + 10;
-    let end: u16 = 31 + 10;
-    let data = [
-        ((start >> 8) as u8) as u16,
-        ((start & 0xff) as u8) as u16,
-        ((end >> 8) as u8) as u16,
-        ((end & 0xff) as u8) as u16,
-    ];
-    display
-        .write_command(Command::ColumnAddressSet, &data)
-        .await;
-
-    let start: u16 = 0 + 10;
-    let end: u16 = 31 + 10;
-    let data = [
-        ((start >> 8) as u8) as u16,
-        ((start & 0xff) as u8) as u16,
-        ((end >> 8) as u8) as u16,
-        ((end & 0xff) as u8) as u16,
-    ];
-    display.write_command(Command::PageAddressSet, &data).await;
+    display.norma_display_mode().await;
+    display.display_on().await;
+    display.idle_mode_off().await;
+    display.tearing_effect_line_on().await;
 
     let data = include_bytes!("./face.tga");
     let tga: Tga<Rgb565> = Tga::from_slice(data).unwrap();
 
     let p: Vec<_, { 32 * 32 }> = tga.pixels().map(|p| convert(p)).collect();
 
-    display
-        .write_command(Command::MemoryWrite, p.as_slice())
-        .await;
-
     let mut c = 0;
     let mut ticker = Ticker::every(Duration::from_hz(10));
     loop {
-        let start: u16 = 0 + 50;
-        let end: u16 = 31 + 50;
-        let data = [
-            ((start >> 8) as u8) as u16,
-            ((start & 0xff) as u8) as u16,
-            ((end >> 8) as u8) as u16,
-            ((end & 0xff) as u8) as u16,
-        ];
+        c += 1;
+        c = if c >= 318 { 0 } else { c };
+
         display
-            .write_command(Command::ColumnAddressSet, &data)
+            .draw_data(
+                Rectangle::new(Point::new(0, c), Size::new(32, 32)),
+                &[0; 32 * 32],
+            )
             .await;
 
-        let start: u16 = 0 + 50;
-        let end: u16 = 31 + 50;
-        let data = [
-            ((start >> 8) as u8) as u16,
-            ((start & 0xff) as u8) as u16,
-            ((end >> 8) as u8) as u16,
-            ((end & 0xff) as u8) as u16,
-        ];
-        display.write_command(Command::PageAddressSet, &data).await;
+        display
+            .draw_data(
+                Rectangle::new(Point::new(0, c + 1), Size::new(32, 32)),
+                p.as_slice(),
+            )
+            .await;
 
-        let b: &[u16];
-        if c % 2 == 0 {
-            b = &[0u16; 32 * 32];
-        } else {
-            b = p.as_slice();
-        }
-
-        display.write_command(Command::MemoryWrite, b).await;
-        c += 1;
         ticker.next().await;
     }
 }

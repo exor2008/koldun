@@ -1,13 +1,232 @@
-use embassy_rp::dma::{AnyChannel, Channel};
-use embassy_rp::gpio::Level;
-use embassy_rp::pio::Common;
-use embassy_rp::pio::{
-    Config, Direction, FifoJoin, Instance, PioPin, ShiftConfig, ShiftDirection, StateMachine,
-};
+pub mod pio_parallel;
+use crate::ili9431::pio_parallel::PioParallel;
+use core::convert::Infallible;
+use embedded_graphics::draw_target::DrawTarget;
+use embedded_graphics::pixelcolor::Rgb565;
+use embedded_graphics::prelude::{Dimensions, Point, Size};
+use embedded_graphics::primitives::Rectangle;
 
-use embassy_rp::{into_ref, Peripheral, PeripheralRef};
-use fixed::types::U24F8;
-use heapless::Vec;
+const SIZE_X: u16 = 240;
+const SIZE_Y: u16 = 320;
+
+pub enum PixelFormat {
+    Bit16 = 0b0101_0101,
+    Bit18 = 0b0110_0110,
+}
+
+pub enum Order {
+    Forward,
+    Reverse,
+}
+
+impl Default for Order {
+    fn default() -> Order {
+        Order::Forward
+    }
+}
+
+pub trait Commands<DataFormat> {
+    async fn set_active_area(&mut self, area: Rectangle);
+    async fn set_pixel_format(&mut self, pixel: PixelFormat);
+    async fn sleep_out(&mut self);
+    async fn inversion_off(&mut self);
+    async fn memory_access_control(
+        &mut self,
+        row_order: Order,
+        column_order: Order,
+        rc_exchange: Order,
+        vert_refresh: Order,
+        hor_refresh: Order,
+        color: Order,
+    );
+    async fn norma_display_mode(&mut self);
+    async fn display_on(&mut self);
+    async fn idle_mode_off(&mut self);
+    async fn draw_data(&mut self, area: Rectangle, data: &[DataFormat]);
+    async fn tearing_effect_line_on(&mut self);
+    async fn column_address_set(&mut self, start: DataFormat, end: DataFormat);
+    async fn page_address_set(&mut self, start: DataFormat, end: DataFormat);
+}
+pub struct Ili9431<C: PioParallel<u16>> {
+    pio_interface: C,
+}
+
+impl<C: PioParallel<u16>> Ili9431<C> {
+    pub fn new(pio_interface: C) -> Ili9431<C> {
+        Ili9431 { pio_interface }
+    }
+}
+
+impl<C: PioParallel<u16>> Dimensions for Ili9431<C> {
+    fn bounding_box(&self) -> Rectangle {
+        Rectangle::new(Point::new(0, 0), Size::new(240, 320))
+    }
+}
+
+impl<C: PioParallel<u16>> DrawTarget for Ili9431<C> {
+    type Color = Rgb565;
+    type Error = Infallible;
+
+    fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
+        todo!()
+    }
+
+    fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = embedded_graphics::Pixel<Self::Color>>,
+    {
+        todo!()
+    }
+    fn fill_contiguous<I>(&mut self, area: &Rectangle, colors: I) -> Result<(), Self::Error>
+    where
+        I: IntoIterator<Item = Self::Color>,
+    {
+        todo!()
+    }
+    fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
+        todo!()
+    }
+}
+
+impl<C: PioParallel<u16>> Commands<u16> for Ili9431<C> {
+    async fn set_active_area(&mut self, area: Rectangle) {
+        let start = area.top_left;
+        let end = area.bottom_right().unwrap();
+        self.column_address_set(start.x as u16, end.x as u16).await;
+        self.page_address_set(start.y as u16, end.y as u16).await;
+    }
+
+    async fn set_pixel_format(&mut self, pixel: PixelFormat) {
+        self.pio_interface
+            .write_command(Command::InterfacePixelFormat, &[pixel as u16])
+            .await;
+    }
+
+    async fn sleep_out(&mut self) {
+        self.pio_interface
+            .write_command(Command::SleepOut, &[])
+            .await;
+    }
+
+    async fn display_on(&mut self) {
+        self.pio_interface
+            .write_command(Command::DisplayOn, &[])
+            .await;
+    }
+
+    async fn idle_mode_off(&mut self) {
+        self.pio_interface
+            .write_command(Command::IdleModeOff, &[])
+            .await;
+    }
+
+    async fn inversion_off(&mut self) {
+        self.pio_interface
+            .write_command(Command::DisplayInversionOff, &[])
+            .await;
+    }
+
+    async fn norma_display_mode(&mut self) {
+        self.pio_interface
+            .write_command(Command::NormalDisplayMode, &[])
+            .await;
+    }
+
+    async fn memory_access_control(
+        &mut self,
+        row_order: Order,
+        column_order: Order,
+        rc_exchange: Order,
+        vert_refresh: Order,
+        hor_refresh: Order,
+        color: Order,
+    ) {
+        let mut data = 0u16;
+
+        data |= match hor_refresh {
+            Order::Forward => 0,
+            Order::Reverse => 1 << 2,
+        };
+
+        data |= match color {
+            Order::Forward => 0,
+            Order::Reverse => 1 << 3,
+        };
+
+        data |= match vert_refresh {
+            Order::Forward => 0,
+            Order::Reverse => 1 << 4,
+        };
+
+        data |= match rc_exchange {
+            Order::Forward => 0,
+            Order::Reverse => 1 << 5,
+        };
+
+        data |= match column_order {
+            Order::Forward => 0,
+            Order::Reverse => 1 << 6,
+        };
+
+        data |= match row_order {
+            Order::Forward => 0,
+            Order::Reverse => 1 << 7,
+        };
+
+        self.pio_interface
+            .write_command(Command::MemoryAccessControl, &[data])
+            .await;
+    }
+
+    async fn draw_data(&mut self, area: Rectangle, data: &[u16]) {
+        self.set_active_area(area).await;
+        self.pio_interface
+            .write_command(Command::MemoryWrite, data)
+            .await;
+    }
+
+    async fn tearing_effect_line_on(&mut self) {
+        self.pio_interface
+            .write_command(Command::TearingEffectLineOn, &[0b1])
+            .await;
+    }
+
+    async fn column_address_set(&mut self, start: u16, end: u16) {
+        assert_size_y::<SIZE_Y>(start);
+        assert_size_y::<SIZE_Y>(end);
+        let data = [
+            ((start >> 8) as u8) as u16,
+            ((start & 0xff) as u8) as u16,
+            ((end >> 8) as u8) as u16,
+            ((end & 0xff) as u8) as u16,
+        ];
+        self.pio_interface
+            .write_command(Command::ColumnAddressSet, &data)
+            .await;
+    }
+
+    async fn page_address_set(&mut self, start: u16, end: u16) {
+        assert_size_x::<SIZE_X>(start);
+        assert_size_x::<SIZE_X>(end);
+        let data = [
+            ((start >> 8) as u8) as u16,
+            ((start & 0xff) as u8) as u16,
+            ((end >> 8) as u8) as u16,
+            ((end & 0xff) as u8) as u16,
+        ];
+        self.pio_interface
+            .write_command(Command::PageAddressSet, &data)
+            .await;
+    }
+}
+
+fn assert_size_x<const SIZE_X: u16>(x: u16) {
+    assert!(x <= SIZE_X, "X should be <= 240");
+}
+
+fn assert_size_y<const SIZE_Y: u16>(y: u16) {
+    assert!(y <= SIZE_Y, "Y should be <= 320");
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Command {
@@ -92,125 +311,4 @@ pub enum Command {
     DigitalGammaControl1 = 0xe2,
     DigitalGammaControl2 = 0xe3,
     SPIReadCommandSetting = 0xfb,
-}
-
-pub struct ILI9431<'a, P: Instance, const N: usize> {
-    dma: PeripheralRef<'a, AnyChannel>,
-    sm: StateMachine<'a, P, N>,
-}
-
-impl<'a, P: Instance, const N: usize> ILI9431<'a, P, N> {
-    pub fn new(
-        pio: &mut Common<'a, P>,
-        mut sm: StateMachine<'a, P, N>,
-        dma: impl Peripheral<P = impl Channel> + 'a,
-        db0: impl PioPin,
-        db1: impl PioPin,
-        db2: impl PioPin,
-        db3: impl PioPin,
-        db4: impl PioPin,
-        db5: impl PioPin,
-        db6: impl PioPin,
-        db7: impl PioPin,
-        db8: impl PioPin,
-        db9: impl PioPin,
-        db10: impl PioPin,
-        db11: impl PioPin,
-        db12: impl PioPin,
-        db13: impl PioPin,
-        db14: impl PioPin,
-        db15: impl PioPin,
-        cs: impl PioPin,
-        dc: impl PioPin,
-        rd: impl PioPin,
-        wr: impl PioPin,
-    ) -> ILI9431<'a, P, N> {
-        into_ref!(dma);
-
-        let db0 = pio.make_pio_pin(db0);
-        let db1 = pio.make_pio_pin(db1);
-        let db2 = pio.make_pio_pin(db2);
-        let db3 = pio.make_pio_pin(db3);
-        let db4 = pio.make_pio_pin(db4);
-        let db5 = pio.make_pio_pin(db5);
-        let db6 = pio.make_pio_pin(db6);
-        let db7 = pio.make_pio_pin(db7);
-        let db8 = pio.make_pio_pin(db8);
-        let db9 = pio.make_pio_pin(db9);
-        let db10 = pio.make_pio_pin(db10);
-        let db11 = pio.make_pio_pin(db11);
-        let db12 = pio.make_pio_pin(db12);
-        let db13 = pio.make_pio_pin(db13);
-        let db14 = pio.make_pio_pin(db14);
-        let db15 = pio.make_pio_pin(db15);
-        let cs = pio.make_pio_pin(cs);
-        let dc = pio.make_pio_pin(dc);
-        let rd = pio.make_pio_pin(rd);
-        let wr = pio.make_pio_pin(wr);
-
-        let prg_command = pio_proc::pio_asm!(
-            r#"
-            .side_set 4 opt
-            .wrap_target
-                nop                 side 0b0100 ; wr - ON   rd - OFF dc - COMMAND   cs - ON
-                out pins    16 
-                jmp !osre   data    side 0b1100 ; wr - OFF  rd - OFF dc - COMMAND   cs - ON
-                jmp end
-            data:
-                nop                 side 0b0110 ; wr - ON   rd - OFF dc - DATA      cs - ON
-                out pins    16 
-                jmp !osre   data    side 0b1110 ; wr - OFF  rd - OFF dc - DATA      cs - ON
-            end:
-                nop                 side 0b1111 ; wr - OFF  rd - OFF dc - DATA      cs - OFF
-            .wrap
-            "#,
-        );
-
-        sm.set_pin_dirs(
-            Direction::Out,
-            &[
-                &db0, &db1, &db2, &db3, &db4, &db5, &db6, &db7, &db8, &db9, &db10, &db11, &db12,
-                &db13, &db14, &db15, &dc, &rd, &wr,
-            ],
-        );
-        sm.set_pins(Level::High, &[&cs, &rd, &wr]);
-        sm.set_pins(Level::Low, &[&dc]);
-
-        let mut cfg = Config::default();
-        cfg.use_program(
-            &pio.load_program(&prg_command.program),
-            &[&cs, &dc, &rd, &wr],
-        );
-        cfg.set_out_pins(&[
-            &db0, &db1, &db2, &db3, &db4, &db5, &db6, &db7, &db8, &db9, &db10, &db11, &db12, &db13,
-            &db14, &db15,
-        ]);
-
-        cfg.shift_out = ShiftConfig {
-            auto_fill: true,
-            direction: ShiftDirection::Left,
-            threshold: 16,
-        };
-
-        cfg.fifo_join = FifoJoin::TxOnly;
-        cfg.clock_divider = U24F8::from_num(1.5);
-        sm.set_config(&cfg);
-        sm.set_enable(true);
-
-        ILI9431 {
-            dma: dma.map_into(),
-            sm,
-        }
-    }
-
-    pub async fn write_command(&mut self, command: Command, words: &[u16]) {
-        let mut a: Vec<u16, { 32 * 32 + 1 }> = Vec::new();
-        a.extend_from_slice(&[command as u16]).unwrap();
-        a.extend_from_slice(words).unwrap();
-
-        self.sm
-            .tx()
-            .dma_push(self.dma.reborrow(), a.as_slice())
-            .await;
-    }
 }
