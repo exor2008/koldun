@@ -1,13 +1,14 @@
 pub mod pio_parallel;
 use crate::ili9431::pio_parallel::PioParallel;
 use core::convert::Infallible;
+use embassy_futures::block_on;
 use embedded_graphics::draw_target::DrawTarget;
 use embedded_graphics::pixelcolor::Rgb565;
+use embedded_graphics::prelude::*;
 use embedded_graphics::prelude::{Dimensions, Point, Size};
 use embedded_graphics::primitives::Rectangle;
-
-const SIZE_X: u16 = 240;
-const SIZE_Y: u16 = 320;
+use embedded_graphics::Pixel;
+use heapless::Vec;
 
 pub enum PixelFormat {
     Bit16 = 0b0101_0101,
@@ -55,11 +56,16 @@ impl<C: PioParallel<u16>> Ili9431<C> {
     pub fn new(pio_interface: C) -> Ili9431<C> {
         Ili9431 { pio_interface }
     }
+
+    fn rgb656_to_u16(color: Rgb565) -> u16 {
+        let b = color.to_ne_bytes();
+        (b[1] as u16) << 8 | (b[0]) as u16
+    }
 }
 
 impl<C: PioParallel<u16>> Dimensions for Ili9431<C> {
     fn bounding_box(&self) -> Rectangle {
-        Rectangle::new(Point::new(0, 0), Size::new(240, 320))
+        Rectangle::new(Point::new(0, 0), Size::new(320, 240))
     }
 }
 
@@ -68,32 +74,59 @@ impl<C: PioParallel<u16>> DrawTarget for Ili9431<C> {
     type Error = Infallible;
 
     fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
-        todo!()
+        let area = Rectangle::new(Point::new(0, 0), Size::new(320, 240));
+        self.fill_solid(&area, color).unwrap();
+        Ok(())
     }
 
     fn draw_iter<I>(&mut self, pixels: I) -> Result<(), Self::Error>
     where
-        I: IntoIterator<Item = embedded_graphics::Pixel<Self::Color>>,
+        I: IntoIterator<Item = Pixel<Self::Color>>,
     {
-        todo!()
+        for Pixel(coord, color) in pixels.into_iter() {
+            if let Ok((_x @ 0..=239, _y @ 0..=319)) = coord.try_into() {
+                let data = Self::rgb656_to_u16(color);
+                let area = Rectangle::new(Point::new(coord.x, coord.y), Size::new(1, 1));
+                block_on(self.draw_data(area, &[data]));
+            }
+        }
+        Ok(())
     }
+
     fn fill_contiguous<I>(&mut self, area: &Rectangle, colors: I) -> Result<(), Self::Error>
     where
         I: IntoIterator<Item = Self::Color>,
     {
-        todo!()
+        let area = area.intersection(&self.bounding_box());
+
+        let data: Vec<_, { 32 * 32 }> =
+            colors.into_iter().map(|p| Self::rgb656_to_u16(p)).collect();
+        block_on(self.draw_data(area, data.as_slice()));
+        Ok(())
     }
+
     fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
-        todo!()
+        let color = Self::rgb656_to_u16(color);
+        let data = [color; 32 * 32];
+        // let data = [0b11000_101000_11000; 32 * 32];
+        for x in (0..320).step_by(32) {
+            for y in (0..240).step_by(32) {
+                let square = Rectangle::new(Point::new(x, y), Size::new(32, 32));
+                let area = area.intersection(&square);
+                block_on(self.draw_data(area, &data));
+            }
+        }
+        Ok(())
     }
 }
 
 impl<C: PioParallel<u16>> Commands<u16> for Ili9431<C> {
     async fn set_active_area(&mut self, area: Rectangle) {
         let start = area.top_left;
-        let end = area.bottom_right().unwrap();
-        self.column_address_set(start.x as u16, end.x as u16).await;
-        self.page_address_set(start.y as u16, end.y as u16).await;
+        if let Some(end) = area.bottom_right() {
+            self.column_address_set(start.x as u16, end.x as u16).await;
+            self.page_address_set(start.y as u16, end.y as u16).await;
+        }
     }
 
     async fn set_pixel_format(&mut self, pixel: PixelFormat) {
@@ -192,8 +225,6 @@ impl<C: PioParallel<u16>> Commands<u16> for Ili9431<C> {
     }
 
     async fn column_address_set(&mut self, start: u16, end: u16) {
-        assert_size_y::<SIZE_Y>(start);
-        assert_size_y::<SIZE_Y>(end);
         let data = [
             ((start >> 8) as u8) as u16,
             ((start & 0xff) as u8) as u16,
@@ -206,8 +237,6 @@ impl<C: PioParallel<u16>> Commands<u16> for Ili9431<C> {
     }
 
     async fn page_address_set(&mut self, start: u16, end: u16) {
-        assert_size_x::<SIZE_X>(start);
-        assert_size_x::<SIZE_X>(end);
         let data = [
             ((start >> 8) as u8) as u16,
             ((start & 0xff) as u8) as u16,
@@ -218,14 +247,6 @@ impl<C: PioParallel<u16>> Commands<u16> for Ili9431<C> {
             .write_command(Command::PageAddressSet, &data)
             .await;
     }
-}
-
-fn assert_size_x<const SIZE_X: u16>(x: u16) {
-    assert!(x <= SIZE_X, "X should be <= 240");
-}
-
-fn assert_size_y<const SIZE_Y: u16>(y: u16) {
-    assert!(y <= SIZE_Y, "Y should be <= 320");
 }
 
 #[derive(Clone, Copy, Debug)]

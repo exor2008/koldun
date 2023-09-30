@@ -11,12 +11,21 @@ use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_graphics::primitives::Rectangle;
-use embedded_graphics::{pixelcolor::Rgb565, prelude::*};
+use embedded_graphics::text::DecorationColor;
+use embedded_graphics::{
+    mono_font::{ascii::FONT_9X15_BOLD, iso_8859_5::FONT_9X18_BOLD, MonoTextStyle},
+    pixelcolor::Rgb565,
+    prelude::*,
+    text::Text,
+};
 use heapless::Vec;
-use koldun::ili9431::Order;
-use koldun::ili9431::{pio_parallel::PioParallel16, Commands, Ili9431, PixelFormat};
+use koldun::ili9431::{pio_parallel::PioParallel16, Commands, Ili9431, Order, PixelFormat};
 use panic_probe as _;
 use tinytga::Tga;
+use u8g2_fonts::fonts::u8g2_font_unifont_t_animals;
+use u8g2_fonts::types::FontColor;
+use u8g2_fonts::types::{HorizontalAlignment, VerticalPosition};
+use u8g2_fonts::FontRenderer;
 
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
@@ -75,8 +84,8 @@ async fn main(_spawner: Spawner) {
     display
         .memory_access_control(
             Order::Reverse,
-            Order::default(),
-            Order::default(),
+            Order::Reverse,
+            Order::Reverse,
             Order::default(),
             Order::default(),
             Order::Reverse,
@@ -85,34 +94,78 @@ async fn main(_spawner: Spawner) {
     display.norma_display_mode().await;
     display.display_on().await;
     display.idle_mode_off().await;
-    display.tearing_effect_line_on().await;
+
+    display.clear(Rgb565::BLACK).unwrap();
 
     let data = include_bytes!("./face.tga");
     let tga: Tga<Rgb565> = Tga::from_slice(data).unwrap();
 
     let p: Vec<_, { 32 * 32 }> = tga.pixels().map(|p| convert(p)).collect();
+    display
+        .draw_data(
+            Rectangle::new(Point::new(10, 10), Size::new(32, 32)),
+            p.as_slice(),
+        )
+        .await;
 
-    let mut c = 0;
-    let mut ticker = Ticker::every(Duration::from_hz(10));
+    let data = include_bytes!("./wizard.tga");
+    let tga: Tga<Rgb565> = Tga::from_slice(data).unwrap();
+
+    let mut p: Vec<_, { 32 * 32 }> = tga.pixels().map(|p| convert(p)).collect();
+    p.reverse();
+    display
+        .draw_data(
+            Rectangle::new(Point::new(30, 15), Size::new(32, 32)),
+            p.as_slice(),
+        )
+        .await;
+
+    let style = MonoTextStyle::new(&FONT_9X15_BOLD, Rgb565::CSS_DARK_BLUE);
+    Text::new("Hello Rust! FONT_10X20", Point::new(5, 50), style)
+        .draw(&mut display)
+        .unwrap();
+
+    let mut style = MonoTextStyle::new(&FONT_9X18_BOLD, Rgb565::CSS_GREEN);
+    style.background_color = Some(Rgb565::CSS_BLANCHED_ALMOND);
+    style.underline_color = DecorationColor::Custom(Rgb565::CSS_TURQUOISE);
+
+    Text::new("Хэллоу, пьяный волшкебник! ", Point::new(30, 100), style)
+        .draw(&mut display)
+        .unwrap();
+
+    let font = FontRenderer::new::<u8g2_font_unifont_t_animals>();
+
+    font.render_aligned(
+        "animal icons 42",
+        display.bounding_box().center() + Point::new(0, 16),
+        VerticalPosition::Baseline,
+        HorizontalAlignment::Center,
+        FontColor::Transparent(Rgb565::CSS_AQUAMARINE),
+        &mut display,
+    )
+    .unwrap();
+
+    // let mut c = 0;
+    // let mut ticker = Ticker::every(Duration::from_hz(10));
     loop {
-        c += 1;
-        c = if c >= 318 { 0 } else { c };
+        // c += 1;
+        // c = if c >= 318 { 0 } else { c };
 
-        display
-            .draw_data(
-                Rectangle::new(Point::new(0, c), Size::new(32, 32)),
-                &[0; 32 * 32],
-            )
-            .await;
+        // display
+        //     .draw_data(
+        //         Rectangle::new(Point::new(0, c), Size::new(32, 32)),
+        //         &[0; 32 * 32],
+        //     )
+        //     .await;
 
-        display
-            .draw_data(
-                Rectangle::new(Point::new(0, c + 1), Size::new(32, 32)),
-                p.as_slice(),
-            )
-            .await;
+        // display
+        //     .draw_data(
+        //         Rectangle::new(Point::new(0, c + 1), Size::new(32, 32)),
+        //         p.as_slice(),
+        //     )
+        //     .await;
 
-        ticker.next().await;
+        // ticker.next().await;
     }
 }
 

@@ -112,7 +112,7 @@ impl<'a, P: Instance, const N: usize> PioParallel16<'a, P, N> {
         };
 
         cfg.fifo_join = FifoJoin::TxOnly;
-        cfg.clock_divider = U24F8::from_num(1.5);
+        cfg.clock_divider = U24F8::from_num(2.0);
         sm.set_config(&cfg);
         sm.set_enable(true);
 
