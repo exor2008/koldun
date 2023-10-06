@@ -10,6 +10,7 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_time::{Duration, Ticker, Timer};
+use embedded_alloc::Heap;
 use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::text::DecorationColor;
 use embedded_graphics::{
@@ -19,6 +20,8 @@ use embedded_graphics::{
     text::Text,
 };
 use heapless::Vec;
+use koldun::game::state_mashine::states::ControlEvent;
+use koldun::game::state_mashine::StateMachine;
 use koldun::ili9431::{pio_parallel::PioParallel16, Commands, Ili9431, Order, PixelFormat};
 use panic_probe as _;
 use tinytga::Tga;
@@ -26,6 +29,10 @@ use u8g2_fonts::fonts::u8g2_font_unifont_t_animals;
 use u8g2_fonts::types::FontColor;
 use u8g2_fonts::types::{HorizontalAlignment, VerticalPosition};
 use u8g2_fonts::FontRenderer;
+extern crate alloc;
+
+#[global_allocator]
+static HEAP: Heap = Heap::empty();
 
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
@@ -33,6 +40,14 @@ bind_interrupts!(struct Irqs {
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
+    info!("Initializing heap...");
+    {
+        use core::mem::MaybeUninit;
+        const HEAP_SIZE: usize = 1024;
+        static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
+        unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
+    }
+
     info!("Start");
     let p = embassy_rp::init(Default::default());
 
@@ -145,6 +160,10 @@ async fn main(_spawner: Spawner) {
     )
     .unwrap();
 
+    let mut sm = StateMachine::new();
+    sm.on_control(ControlEvent::ButtonDown);
+    sm.on_control(ControlEvent::Down);
+    sm.on_control(ControlEvent::ButtonDown);
     // let mut c = 0;
     // let mut ticker = Ticker::every(Duration::from_hz(10));
     loop {
