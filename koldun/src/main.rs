@@ -22,7 +22,7 @@ use embedded_graphics::{
 use heapless::Vec;
 use koldun::game::state_mashine::states::ControlEvent;
 use koldun::game::state_mashine::StateMachine;
-use koldun::ili9431::{pio_parallel::PioParallel16, Commands, Ili9431, Order, PixelFormat};
+use koldun::ili9431::{pio_parallel::PioParallel16, Display, Ili9431, Order, PixelFormat};
 use panic_probe as _;
 use tinytga::Tga;
 use u8g2_fonts::fonts::u8g2_font_unifont_t_animals;
@@ -160,10 +160,14 @@ async fn main(_spawner: Spawner) {
     )
     .unwrap();
 
-    let mut sm = StateMachine::new();
-    sm.on_control(ControlEvent::ButtonDown);
-    sm.on_control(ControlEvent::Down);
-    sm.on_control(ControlEvent::ButtonDown);
+    let mut sm: StateMachine<_> = StateMachine::new(display);
+    sm.on_control(ControlEvent::ButtonDown).await;
+    Timer::after(Duration::from_secs(1)).await;
+    sm.on_control(ControlEvent::ButtonDown).await;
+    Timer::after(Duration::from_secs(1)).await;
+    sm.on_control(ControlEvent::Down).await;
+    Timer::after(Duration::from_secs(1)).await;
+    sm.on_control(ControlEvent::ButtonDown).await;
     // let mut c = 0;
     // let mut ticker = Ticker::every(Duration::from_hz(10));
     loop {

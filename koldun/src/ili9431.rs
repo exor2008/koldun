@@ -26,7 +26,9 @@ impl Default for Order {
     }
 }
 
-pub trait Commands<DataFormat> {
+pub trait GameDisplay: Display<u16> + DrawTarget<Color = Rgb565, Error = Infallible> {}
+
+pub trait Display<DataFormat> {
     async fn set_active_area(&mut self, area: Rectangle);
     async fn set_pixel_format(&mut self, pixel: PixelFormat);
     async fn sleep_out(&mut self);
@@ -120,7 +122,7 @@ impl<C: PioParallel<u16>> DrawTarget for Ili9431<C> {
     }
 }
 
-impl<C: PioParallel<u16>> Commands<u16> for Ili9431<C> {
+impl<C: PioParallel<u16>> Display<u16> for Ili9431<C> {
     async fn set_active_area(&mut self, area: Rectangle) {
         let start = area.top_left;
         if let Some(end) = area.bottom_right() {
@@ -248,6 +250,8 @@ impl<C: PioParallel<u16>> Commands<u16> for Ili9431<C> {
             .await;
     }
 }
+
+impl<C: PioParallel<u16>> GameDisplay for Ili9431<C> {}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Command {

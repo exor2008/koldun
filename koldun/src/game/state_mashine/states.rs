@@ -1,7 +1,11 @@
+use crate::ili9431::GameDisplay;
+use alloc::boxed::Box;
+use async_trait::async_trait;
+extern crate alloc;
+
+pub mod init;
 pub mod level;
 pub mod start_menu;
-use alloc::boxed::Box;
-extern crate alloc;
 
 pub enum ControlEvent {
     Up,
@@ -10,6 +14,13 @@ pub enum ControlEvent {
     ButtonUp,
 }
 
-pub trait State {
-    fn on_control(&mut self, event: ControlEvent) -> Option<Box<dyn State>>;
+#[async_trait]
+pub trait State<D: GameDisplay> {
+    async fn on_control(
+        &mut self,
+        event: ControlEvent,
+        display: &mut D,
+    ) -> Option<Box<dyn State<D>>>;
+
+    async fn on_init(&mut self, display: &mut D);
 }
