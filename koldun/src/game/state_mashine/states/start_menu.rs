@@ -7,7 +7,9 @@ use async_trait::async_trait;
 use core::marker::Send;
 use defmt::info;
 use embedded_graphics::pixelcolor::Rgb565;
+use embedded_graphics::prelude::Point;
 use embedded_graphics::prelude::RgbColor;
+use embedded_graphics::prelude::WebColors;
 extern crate alloc;
 
 pub enum StartMenuCommands {
@@ -30,7 +32,7 @@ impl<D: GameDisplay + Send> State<D> for StartMenu {
     async fn on_control(
         &mut self,
         event: ControlEvent,
-        display: &mut D,
+        _display: &mut D,
     ) -> Option<Box<dyn State<D>>> {
         match event {
             ControlEvent::ButtonDown => {
@@ -46,6 +48,24 @@ impl<D: GameDisplay + Send> State<D> for StartMenu {
 
     async fn on_init(&mut self, display: &mut D) {
         info!("StartMenu Init");
-        display.clear(Rgb565::MAGENTA).unwrap();
+        display.clear(Rgb565::CSS_GRAY).unwrap();
+
+        display.draw_text(
+            "KOLDUN the Game",
+            Point::new(50, 50),
+            Rgb565::CSS_DARK_KHAKI,
+            None,
+        );
+
+        display.draw_text(
+            "New game",
+            Point::new(50, 70),
+            Rgb565::CSS_ORANGE,
+            Some(Rgb565::BLUE),
+        );
+
+        display.draw_text("Continue", Point::new(50, 85), Rgb565::CSS_ORANGE, None);
+
+        display.draw_text("Options", Point::new(50, 100), Rgb565::CSS_ORANGE, None);
     }
 }

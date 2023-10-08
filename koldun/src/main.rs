@@ -43,7 +43,7 @@ async fn main(_spawner: Spawner) {
     info!("Initializing heap...");
     {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 1024;
+        const HEAP_SIZE: usize = 1024 * 10; //kB
         static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
     }
@@ -164,7 +164,7 @@ async fn main(_spawner: Spawner) {
     sm.on_control(ControlEvent::ButtonDown).await;
     Timer::after(Duration::from_secs(1)).await;
     sm.on_control(ControlEvent::ButtonDown).await;
-    Timer::after(Duration::from_secs(1)).await;
+    Timer::after(Duration::from_secs(3)).await;
     sm.on_control(ControlEvent::Down).await;
     Timer::after(Duration::from_secs(1)).await;
     sm.on_control(ControlEvent::ButtonDown).await;

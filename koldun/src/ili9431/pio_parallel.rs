@@ -1,4 +1,6 @@
 use crate::ili9431::Command;
+use alloc::boxed::Box;
+use async_trait::async_trait;
 use embassy_rp::dma::{AnyChannel, Channel};
 use embassy_rp::gpio::Level;
 use embassy_rp::pio::{
@@ -8,7 +10,9 @@ use embassy_rp::pio::{
 use embassy_rp::{into_ref, Peripheral, PeripheralRef};
 use fixed::types::U24F8;
 use heapless::Vec;
+extern crate alloc;
 
+#[async_trait]
 pub trait PioParallel<DataFormat> {
     async fn write_command(&mut self, command: Command, words: &[DataFormat]);
 }
@@ -123,7 +127,8 @@ impl<'a, P: Instance, const N: usize> PioParallel16<'a, P, N> {
     }
 }
 
-impl<'a, P: Instance, const N: usize> PioParallel<u16> for PioParallel16<'a, P, N> {
+#[async_trait]
+impl<'a, P: Instance + Send, const N: usize> PioParallel<u16> for PioParallel16<'a, P, N> {
     async fn write_command(&mut self, command: Command, words: &[u16]) {
         let mut data: Vec<u16, { 32 * 32 + 1 }> = Vec::new();
         data.extend_from_slice(&[command as u16]).unwrap();

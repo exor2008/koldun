@@ -1,14 +1,20 @@
 pub mod pio_parallel;
 use crate::ili9431::pio_parallel::PioParallel;
+use alloc::boxed::Box;
+use async_trait::async_trait;
 use core::convert::Infallible;
 use embassy_futures::block_on;
 use embedded_graphics::draw_target::DrawTarget;
+use embedded_graphics::mono_font::ascii::FONT_9X15_BOLD;
+use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
 use embedded_graphics::prelude::{Dimensions, Point, Size};
 use embedded_graphics::primitives::Rectangle;
+use embedded_graphics::text::Text;
 use embedded_graphics::Pixel;
 use heapless::Vec;
+extern crate alloc;
 
 pub enum PixelFormat {
     Bit16 = 0b0101_0101,
@@ -26,8 +32,21 @@ impl Default for Order {
     }
 }
 
-pub trait GameDisplay: Display<u16> + DrawTarget<Color = Rgb565, Error = Infallible> {}
+#[async_trait]
+pub trait DrawTargetText: DrawTarget {
+    fn draw_text(
+        &mut self,
+        text: &str,
+        position: Point,
+        color: Self::Color,
+        bg: Option<Self::Color>,
+    );
+}
 
+#[async_trait]
+pub trait GameDisplay: Display<u16> + DrawTargetText<Color = Rgb565, Error = Infallible> {}
+
+#[async_trait]
 pub trait Display<DataFormat> {
     async fn set_active_area(&mut self, area: Rectangle);
     async fn set_pixel_format(&mut self, pixel: PixelFormat);
@@ -50,11 +69,17 @@ pub trait Display<DataFormat> {
     async fn column_address_set(&mut self, start: DataFormat, end: DataFormat);
     async fn page_address_set(&mut self, start: DataFormat, end: DataFormat);
 }
-pub struct Ili9431<C: PioParallel<u16>> {
+pub struct Ili9431<C: PioParallel<u16>>
+where
+    C: Send,
+{
     pio_interface: C,
 }
 
-impl<C: PioParallel<u16>> Ili9431<C> {
+impl<C: PioParallel<u16>> Ili9431<C>
+where
+    C: Send,
+{
     pub fn new(pio_interface: C) -> Ili9431<C> {
         Ili9431 { pio_interface }
     }
@@ -65,13 +90,19 @@ impl<C: PioParallel<u16>> Ili9431<C> {
     }
 }
 
-impl<C: PioParallel<u16>> Dimensions for Ili9431<C> {
+impl<C: PioParallel<u16>> Dimensions for Ili9431<C>
+where
+    C: Send,
+{
     fn bounding_box(&self) -> Rectangle {
         Rectangle::new(Point::new(0, 0), Size::new(320, 240))
     }
 }
 
-impl<C: PioParallel<u16>> DrawTarget for Ili9431<C> {
+impl<C: PioParallel<u16>> DrawTarget for Ili9431<C>
+where
+    C: Send,
+{
     type Color = Rgb565;
     type Error = Infallible;
 
@@ -122,7 +153,28 @@ impl<C: PioParallel<u16>> DrawTarget for Ili9431<C> {
     }
 }
 
-impl<C: PioParallel<u16>> Display<u16> for Ili9431<C> {
+impl<C: PioParallel<u16>> DrawTargetText for Ili9431<C>
+where
+    C: Send,
+{
+    fn draw_text(
+        &mut self,
+        text: &str,
+        position: Point,
+        color: Self::Color,
+        bg: Option<Self::Color>,
+    ) {
+        let mut style = MonoTextStyle::new(&FONT_9X15_BOLD, color);
+        style.background_color = bg;
+        Text::new(text, position, style).draw(self).unwrap();
+    }
+}
+
+#[async_trait]
+impl<C: PioParallel<u16> + Send> Display<u16> for Ili9431<C>
+where
+    C: Send,
+{
     async fn set_active_area(&mut self, area: Rectangle) {
         let start = area.top_left;
         if let Some(end) = area.bottom_right() {
@@ -251,7 +303,8 @@ impl<C: PioParallel<u16>> Display<u16> for Ili9431<C> {
     }
 }
 
-impl<C: PioParallel<u16>> GameDisplay for Ili9431<C> {}
+#[async_trait]
+impl<C: PioParallel<u16> + Send> GameDisplay for Ili9431<C> {}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Command {
