@@ -5,11 +5,8 @@ use alloc::boxed::Box;
 use async_trait::async_trait;
 use defmt::info;
 use embedded_graphics::pixelcolor::Rgb565;
-use embedded_graphics::prelude::*;
 use embedded_graphics::prelude::{Point, RgbColor, Size};
 use embedded_graphics::primitives::Rectangle;
-use heapless::Vec;
-use tinytga::Tga;
 extern crate alloc;
 
 pub struct Level {
@@ -47,17 +44,9 @@ impl<D: GameDisplay + Send> State<D> for Level {
         let bush2 = include_bytes!("..\\..\\..\\Bush2.tga");
         let grass = include_bytes!("..\\..\\..\\Grass.tga");
 
-        let bush1: Tga<Rgb565> = Tga::from_slice(bush1).unwrap();
-        let bush2: Tga<Rgb565> = Tga::from_slice(bush2).unwrap();
-        let grass: Tga<Rgb565> = Tga::from_slice(grass).unwrap();
-
-        let mut bush1: Vec<_, { 32 * 32 }> = bush1.pixels().map(|p| convert(p)).collect();
-        let mut bush2: Vec<_, { 32 * 32 }> = bush2.pixels().map(|p| convert(p)).collect();
-        let mut grass: Vec<_, { 32 * 32 }> = grass.pixels().map(|p| convert(p)).collect();
-
-        bush2.reverse();
-        grass.reverse();
-        bush1.reverse();
+        let bush1 = D::tga_to_data(bush1);
+        let bush2 = D::tga_to_data(bush2);
+        let grass = D::tga_to_data(grass);
 
         for x in 0..self.level.len() {
             for y in 0..self.level[0].len() {
@@ -71,7 +60,7 @@ impl<D: GameDisplay + Send> State<D> for Level {
                                 ),
                                 bush1.as_slice(),
                             )
-                            .await
+                            .await;
                     }
                     2 => {
                         display
@@ -82,7 +71,7 @@ impl<D: GameDisplay + Send> State<D> for Level {
                                 ),
                                 bush2.as_slice(),
                             )
-                            .await
+                            .await;
                     }
                     _ => {
                         // info!("{} {}", x as i32, y as i32);
@@ -94,15 +83,10 @@ impl<D: GameDisplay + Send> State<D> for Level {
                                 ),
                                 grass.as_slice(),
                             )
-                            .await
+                            .await;
                     }
                 }
             }
         }
     }
-}
-
-fn convert(p: Pixel<Rgb565>) -> u16 {
-    let b = p.1.to_ne_bytes();
-    (b[1] as u16) << 8 | (b[0]) as u16
 }

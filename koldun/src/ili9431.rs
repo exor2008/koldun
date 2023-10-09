@@ -14,6 +14,7 @@ use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::text::Text;
 use embedded_graphics::Pixel;
 use heapless::Vec;
+use tinytga::Tga;
 extern crate alloc;
 
 pub enum PixelFormat {
@@ -48,6 +49,8 @@ pub trait GameDisplay: Display<u16> + DrawTargetText<Color = Rgb565, Error = Inf
 
 #[async_trait]
 pub trait Display<DataFormat> {
+    type Color: PixelColor;
+
     async fn set_active_area(&mut self, area: Rectangle);
     async fn set_pixel_format(&mut self, pixel: PixelFormat);
     async fn sleep_out(&mut self);
@@ -68,7 +71,10 @@ pub trait Display<DataFormat> {
     async fn tearing_effect_line_on(&mut self);
     async fn column_address_set(&mut self, start: DataFormat, end: DataFormat);
     async fn page_address_set(&mut self, start: DataFormat, end: DataFormat);
+    fn tga_to_data(data: &[u8]) -> Vec<DataFormat, { 32 * 32 }>;
+    fn color_to_data(color: Self::Color) -> DataFormat;
 }
+
 pub struct Ili9431<C: PioParallel<u16>>
 where
     C: Send,
@@ -82,11 +88,6 @@ where
 {
     pub fn new(pio_interface: C) -> Ili9431<C> {
         Ili9431 { pio_interface }
-    }
-
-    fn rgb656_to_u16(color: Rgb565) -> u16 {
-        let b = color.to_ne_bytes();
-        (b[1] as u16) << 8 | (b[0]) as u16
     }
 }
 
@@ -118,7 +119,7 @@ where
     {
         for Pixel(coord, color) in pixels.into_iter() {
             if let Ok((_x @ 0..=239, _y @ 0..=319)) = coord.try_into() {
-                let data = Self::rgb656_to_u16(color);
+                let data = Self::color_to_data(color);
                 let area = Rectangle::new(Point::new(coord.x, coord.y), Size::new(1, 1));
                 block_on(self.draw_data(area, &[data]));
             }
@@ -133,15 +134,14 @@ where
         let area = area.intersection(&self.bounding_box());
 
         let data: Vec<_, { 32 * 32 }> =
-            colors.into_iter().map(|p| Self::rgb656_to_u16(p)).collect();
+            colors.into_iter().map(|p| Self::color_to_data(p)).collect();
         block_on(self.draw_data(area, data.as_slice()));
         Ok(())
     }
 
     fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
-        let color = Self::rgb656_to_u16(color);
+        let color = Self::color_to_data(color);
         let data = [color; 32 * 32];
-        // let data = [0b11000_101000_11000; 32 * 32];
         for x in (0..320).step_by(32) {
             for y in (0..240).step_by(32) {
                 let square = Rectangle::new(Point::new(x, y), Size::new(32, 32));
@@ -171,10 +171,9 @@ where
 }
 
 #[async_trait]
-impl<C: PioParallel<u16> + Send> Display<u16> for Ili9431<C>
-where
-    C: Send,
-{
+impl<C: PioParallel<u16> + Send> Display<u16> for Ili9431<C> {
+    type Color = Rgb565;
+
     async fn set_active_area(&mut self, area: Rectangle) {
         let start = area.top_left;
         if let Some(end) = area.bottom_right() {
@@ -300,6 +299,19 @@ where
         self.pio_interface
             .write_command(Command::PageAddressSet, &data)
             .await;
+    }
+
+    fn tga_to_data(data: &[u8]) -> Vec<u16, { 32 * 32 }> {
+        let bush1: Tga<Self::Color> = Tga::from_slice(data).unwrap();
+        let mut bush1: Vec<_, { 32 * 32 }> =
+            bush1.pixels().map(|p| Self::color_to_data(p.1)).collect();
+        bush1.reverse();
+        bush1
+    }
+
+    fn color_to_data(color: Self::Color) -> u16 {
+        let b = color.to_ne_bytes();
+        (b[1] as u16) << 8 | (b[0]) as u16
     }
 }
 
