@@ -6,6 +6,7 @@
 #![feature(associated_type_defaults)]
 #![feature(error_in_core)]
 #![feature(impl_trait_in_assoc_type)]
+#![feature(const_trait_impl)]
 
 pub mod game;
 pub mod ili9431;

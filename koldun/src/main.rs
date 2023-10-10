@@ -6,6 +6,7 @@ use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
+use embassy_rp::flash::Flash as RPFlash;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::PIO0;
 use embassy_rp::pio::{InterruptHandler, Pio};
@@ -20,6 +21,7 @@ use embedded_graphics::{
     text::Text,
 };
 use heapless::Vec;
+use koldun::game::flash::FlashAccess;
 use koldun::game::state_mashine::states::ControlEvent;
 use koldun::game::state_mashine::StateMachine;
 use koldun::ili9431::{pio_parallel::PioParallel16, Display, Ili9431, Order, PixelFormat};
@@ -43,7 +45,7 @@ async fn main(_spawner: Spawner) {
     info!("Initializing heap...");
     {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 1024 * 10; //kB
+        const HEAP_SIZE: usize = 1024 * 20; //kB
         static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
         unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
     }
@@ -115,23 +117,23 @@ async fn main(_spawner: Spawner) {
     let data = include_bytes!("./face.tga");
     let tga: Tga<Rgb565> = Tga::from_slice(data).unwrap();
 
-    let p: Vec<_, { 32 * 32 }> = tga.pixels().map(|p| convert(p)).collect();
+    let pix: Vec<_, { 32 * 32 }> = tga.pixels().map(|p| convert(p)).collect();
     display
         .draw_data(
             Rectangle::new(Point::new(10, 10), Size::new(32, 32)),
-            p.as_slice(),
+            pix.as_slice(),
         )
         .await;
 
     let data = include_bytes!("./wizard.tga");
     let tga: Tga<Rgb565> = Tga::from_slice(data).unwrap();
 
-    let mut p: Vec<_, { 32 * 32 }> = tga.pixels().map(|p| convert(p)).collect();
-    p.reverse();
+    let mut pix: Vec<_, { 32 * 32 }> = tga.pixels().map(|p| convert(p)).collect();
+    pix.reverse();
     display
         .draw_data(
             Rectangle::new(Point::new(30, 15), Size::new(32, 32)),
-            p.as_slice(),
+            pix.as_slice(),
         )
         .await;
 
@@ -160,13 +162,15 @@ async fn main(_spawner: Spawner) {
     )
     .unwrap();
 
-    let mut sm: StateMachine<_> = StateMachine::new(display);
+    let flash = RPFlash::new(p.FLASH, p.DMA_CH1);
+    let flash = FlashAccess::new(flash);
+    let mut sm = StateMachine::new(display, flash);
     sm.on_control(ControlEvent::ButtonDown).await;
-    Timer::after(Duration::from_secs(1)).await;
+    Timer::after(Duration::from_millis(100)).await;
     sm.on_control(ControlEvent::ButtonDown).await;
-    Timer::after(Duration::from_secs(3)).await;
+    Timer::after(Duration::from_millis(100)).await;
     sm.on_control(ControlEvent::Down).await;
-    Timer::after(Duration::from_secs(1)).await;
+    Timer::after(Duration::from_millis(100)).await;
     sm.on_control(ControlEvent::ButtonDown).await;
     // let mut c = 0;
     // let mut ticker = Ticker::every(Duration::from_hz(10));

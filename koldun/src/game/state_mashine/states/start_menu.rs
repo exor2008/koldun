@@ -1,4 +1,5 @@
-use crate::game::state_mashine::states::level::Level;
+use crate::game::flash::Flash;
+use crate::game::state_mashine::states::level::{Level, Level1};
 use crate::game::state_mashine::states::ControlEvent;
 use crate::game::state_mashine::states::State;
 use crate::ili9431::GameDisplay;
@@ -28,12 +29,12 @@ impl StartMenu {
 }
 
 #[async_trait]
-impl<D: GameDisplay + Send> State<D> for StartMenu {
+impl<D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for StartMenu {
     async fn on_control(
         &mut self,
         event: ControlEvent,
         _display: &mut D,
-    ) -> Option<Box<dyn State<D>>> {
+    ) -> Option<Box<dyn State<D, F>>> {
         match event {
             ControlEvent::ButtonDown => {
                 info!("Start menu working");
@@ -41,12 +42,13 @@ impl<D: GameDisplay + Send> State<D> for StartMenu {
             }
             _ => {
                 info!("Level created");
-                Some(Box::new(Level::new()))
+                Some(Box::new(Level::<Level1>::new()))
+                // None
             }
         }
     }
 
-    async fn on_init(&mut self, display: &mut D) {
+    async fn on_init(&mut self, display: &mut D, flash: &mut F) {
         info!("StartMenu Init");
         display.clear(Rgb565::CSS_GRAY).unwrap();
 
