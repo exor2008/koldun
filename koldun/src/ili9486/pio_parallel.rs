@@ -115,7 +115,6 @@ impl<'a, P: Instance + Send, const N: usize> PioParallel<u8> for PioParallel8<'a
         let mut data: Vec<u8, { 32 * 32 * 2 + 1 }> = Vec::new();
         data.extend_from_slice(&[command as u8]).unwrap();
         data.extend_from_slice(words).unwrap();
-        // info!("{}", data.len());
 
         self.sm
             .tx()

@@ -159,13 +159,6 @@ where
                 let square = Rectangle::new(Point::new(x, y), Size::new(32, 32));
                 let area = area.intersection(&square);
 
-                // info!(
-                //     "x1:{}, y1:{}, x2:{}, y2:{}",
-                //     area.top_left.x,
-                //     area.top_left.y,
-                //     area.bottom_right().unwrap().x,
-                //     area.bottom_right().unwrap().y
-                // );
                 block_on(self.draw_data(area, v.as_slice()));
             }
         }
@@ -304,7 +297,6 @@ impl<C: PioParallel<u8> + Send> Display<u8> for Ili9486<C> {
             (end >> 8) as u8,
             (end & 0xff) as u8,
         ];
-        // info!("x {}", data);
         self.pio_interface
             .write_command(Command::ColumnAddressSet, &data)
             .await;
@@ -317,7 +309,6 @@ impl<C: PioParallel<u8> + Send> Display<u8> for Ili9486<C> {
             (end >> 8) as u8,
             (end & 0xff) as u8,
         ];
-        // info!("y {}", data);
         self.pio_interface
             .write_command(Command::PageAddressSet, &data)
             .await;
@@ -331,7 +322,6 @@ impl<C: PioParallel<u8> + Send> Display<u8> for Ili9486<C> {
             .flatten()
             .collect();
 
-        // pixels.reverse();
         pixels
     }
 }
