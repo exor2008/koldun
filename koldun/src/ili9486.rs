@@ -1,8 +1,9 @@
 pub mod pio_parallel;
-use crate::ili9431::pio_parallel::PioParallel;
+use crate::ili9486::pio_parallel::PioParallel;
 use alloc::boxed::Box;
 use async_trait::async_trait;
 use core::convert::Infallible;
+use core::slice::SlicePattern;
 use embassy_futures::block_on;
 use embedded_graphics::draw_target::DrawTarget;
 use embedded_graphics::mono_font::ascii::FONT_9X15_BOLD;
@@ -45,7 +46,7 @@ pub trait DrawTargetText: DrawTarget {
 }
 
 #[async_trait]
-pub trait GameDisplay: Display<u16> + DrawTargetText<Color = Rgb565, Error = Infallible> {}
+pub trait GameDisplay: Display<u8> + DrawTargetText<Color = Rgb565, Error = Infallible> {}
 
 #[async_trait]
 pub trait Display<DataFormat> {
@@ -69,38 +70,42 @@ pub trait Display<DataFormat> {
     async fn idle_mode_off(&mut self);
     async fn draw_data(&mut self, area: Rectangle, data: &[DataFormat]);
     async fn tearing_effect_line_on(&mut self);
-    async fn column_address_set(&mut self, start: DataFormat, end: DataFormat);
-    async fn page_address_set(&mut self, start: DataFormat, end: DataFormat);
-    fn tga_to_data(data: &[u8]) -> Vec<DataFormat, { 32 * 32 }>;
-    fn color_to_data(color: Self::Color) -> DataFormat;
+    async fn column_address_set(&mut self, start: u16, end: u16);
+    async fn page_address_set(&mut self, start: u16, end: u16);
+    fn tga_to_data(data: &[u8]) -> Vec<DataFormat, { 32 * 32 * 2 }>;
 }
 
-pub struct Ili9431<C: PioParallel<u16>>
+pub struct Ili9486<C: PioParallel<u8>>
 where
     C: Send,
 {
     pio_interface: C,
 }
 
-impl<C: PioParallel<u16>> Ili9431<C>
+impl<C: PioParallel<u8>> Ili9486<C>
 where
     C: Send,
 {
-    pub fn new(pio_interface: C) -> Ili9431<C> {
-        Ili9431 { pio_interface }
+    pub fn new(pio_interface: C) -> Ili9486<C> {
+        Ili9486 { pio_interface }
+    }
+
+    fn color_to_data(color: Rgb565) -> [u8; 2] {
+        let b = color.to_ne_bytes();
+        [b[1], b[0]]
     }
 }
 
-impl<C: PioParallel<u16>> Dimensions for Ili9431<C>
+impl<C: PioParallel<u8>> Dimensions for Ili9486<C>
 where
     C: Send,
 {
     fn bounding_box(&self) -> Rectangle {
-        Rectangle::new(Point::new(0, 0), Size::new(320, 240))
+        Rectangle::new(Point::new(0, 0), Size::new(480, 320))
     }
 }
 
-impl<C: PioParallel<u16>> DrawTarget for Ili9431<C>
+impl<C: PioParallel<u8>> DrawTarget for Ili9486<C>
 where
     C: Send,
 {
@@ -108,7 +113,7 @@ where
     type Error = Infallible;
 
     fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
-        let area = Rectangle::new(Point::new(0, 0), Size::new(320, 240));
+        let area = self.bounding_box();
         self.fill_solid(&area, color).unwrap();
         Ok(())
     }
@@ -118,10 +123,10 @@ where
         I: IntoIterator<Item = Pixel<Self::Color>>,
     {
         for Pixel(coord, color) in pixels.into_iter() {
-            if let Ok((_x @ 0..=239, _y @ 0..=319)) = coord.try_into() {
+            if let Ok((_x @ 0..=479, _y @ 0..=319)) = coord.try_into() {
                 let data = Self::color_to_data(color);
                 let area = Rectangle::new(Point::new(coord.x, coord.y), Size::new(1, 1));
-                block_on(self.draw_data(area, &[data]));
+                block_on(self.draw_data(area, &data));
             }
         }
         Ok(())
@@ -133,27 +138,42 @@ where
     {
         let area = area.intersection(&self.bounding_box());
 
-        let data: Vec<_, { 32 * 32 }> =
-            colors.into_iter().map(|p| Self::color_to_data(p)).collect();
+        let data: Vec<_, { 32 * 32 }> = colors
+            .into_iter()
+            .map(|p| Self::color_to_data(p))
+            .flatten()
+            .collect();
         block_on(self.draw_data(area, data.as_slice()));
         Ok(())
     }
 
     fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
         let color = Self::color_to_data(color);
-        let data = [color; 32 * 32];
-        for x in (0..320).step_by(32) {
-            for y in (0..240).step_by(32) {
+        let data = &[color; 32 * 32];
+        let mut v: Vec<[u8; 2], { 32 * 32 }> = Vec::new();
+        v.extend_from_slice(data).unwrap();
+        let v = v.flatten();
+
+        for x in (0..480).step_by(32) {
+            for y in (0..320).step_by(32) {
                 let square = Rectangle::new(Point::new(x, y), Size::new(32, 32));
                 let area = area.intersection(&square);
-                block_on(self.draw_data(area, &data));
+
+                // info!(
+                //     "x1:{}, y1:{}, x2:{}, y2:{}",
+                //     area.top_left.x,
+                //     area.top_left.y,
+                //     area.bottom_right().unwrap().x,
+                //     area.bottom_right().unwrap().y
+                // );
+                block_on(self.draw_data(area, v.as_slice()));
             }
         }
         Ok(())
     }
 }
 
-impl<C: PioParallel<u16>> DrawTargetText for Ili9431<C>
+impl<C: PioParallel<u8>> DrawTargetText for Ili9486<C>
 where
     C: Send,
 {
@@ -171,7 +191,7 @@ where
 }
 
 #[async_trait]
-impl<C: PioParallel<u16> + Send> Display<u16> for Ili9431<C> {
+impl<C: PioParallel<u8> + Send> Display<u8> for Ili9486<C> {
     type Color = Rgb565;
 
     async fn set_active_area(&mut self, area: Rectangle) {
@@ -184,7 +204,7 @@ impl<C: PioParallel<u16> + Send> Display<u16> for Ili9431<C> {
 
     async fn set_pixel_format(&mut self, pixel: PixelFormat) {
         self.pio_interface
-            .write_command(Command::InterfacePixelFormat, &[pixel as u16])
+            .write_command(Command::InterfacePixelFormat, &[pixel as u8])
             .await;
     }
 
@@ -227,7 +247,7 @@ impl<C: PioParallel<u16> + Send> Display<u16> for Ili9431<C> {
         hor_refresh: Order,
         color: Order,
     ) {
-        let mut data = 0u16;
+        let mut data = 0u8;
 
         data |= match hor_refresh {
             Order::Forward => 0,
@@ -264,7 +284,7 @@ impl<C: PioParallel<u16> + Send> Display<u16> for Ili9431<C> {
             .await;
     }
 
-    async fn draw_data(&mut self, area: Rectangle, data: &[u16]) {
+    async fn draw_data(&mut self, area: Rectangle, data: &[u8]) {
         self.set_active_area(area).await;
         self.pio_interface
             .write_command(Command::MemoryWrite, data)
@@ -279,11 +299,12 @@ impl<C: PioParallel<u16> + Send> Display<u16> for Ili9431<C> {
 
     async fn column_address_set(&mut self, start: u16, end: u16) {
         let data = [
-            ((start >> 8) as u8) as u16,
-            ((start & 0xff) as u8) as u16,
-            ((end >> 8) as u8) as u16,
-            ((end & 0xff) as u8) as u16,
+            (start >> 8) as u8,
+            (start & 0xff) as u8,
+            (end >> 8) as u8,
+            (end & 0xff) as u8,
         ];
+        // info!("x {}", data);
         self.pio_interface
             .write_command(Command::ColumnAddressSet, &data)
             .await;
@@ -291,32 +312,32 @@ impl<C: PioParallel<u16> + Send> Display<u16> for Ili9431<C> {
 
     async fn page_address_set(&mut self, start: u16, end: u16) {
         let data = [
-            ((start >> 8) as u8) as u16,
-            ((start & 0xff) as u8) as u16,
-            ((end >> 8) as u8) as u16,
-            ((end & 0xff) as u8) as u16,
+            (start >> 8) as u8,
+            (start & 0xff) as u8,
+            (end >> 8) as u8,
+            (end & 0xff) as u8,
         ];
+        // info!("y {}", data);
         self.pio_interface
             .write_command(Command::PageAddressSet, &data)
             .await;
     }
 
-    fn tga_to_data(data: &[u8]) -> Vec<u16, { 32 * 32 }> {
-        let bush1: Tga<Self::Color> = Tga::from_slice(data).unwrap();
-        let mut bush1: Vec<_, { 32 * 32 }> =
-            bush1.pixels().map(|p| Self::color_to_data(p.1)).collect();
-        bush1.reverse();
-        bush1
-    }
+    fn tga_to_data(data: &[u8]) -> Vec<u8, { 32 * 32 * 2 }> {
+        let tga: Tga<Self::Color> = Tga::from_slice(data).unwrap();
+        let pixels: Vec<_, { 32 * 32 * 2 }> = tga
+            .pixels()
+            .map(|p| Self::color_to_data(p.1))
+            .flatten()
+            .collect();
 
-    fn color_to_data(color: Self::Color) -> u16 {
-        let b = color.to_ne_bytes();
-        (b[1] as u16) << 8 | (b[0]) as u16
+        // pixels.reverse();
+        pixels
     }
 }
 
 #[async_trait]
-impl<C: PioParallel<u16> + Send> GameDisplay for Ili9431<C> {}
+impl<C: PioParallel<u8> + Send> GameDisplay for Ili9486<C> {}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Command {

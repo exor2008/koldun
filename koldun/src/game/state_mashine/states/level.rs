@@ -3,10 +3,9 @@ use core::marker::PhantomData;
 use crate::game::flash::Flash;
 use crate::game::state_mashine::states::ControlEvent;
 use crate::game::state_mashine::State;
-use crate::ili9431::GameDisplay;
+use crate::ili9486::GameDisplay;
 use alloc::boxed::Box;
 use async_trait::async_trait;
-use core::mem::transmute;
 use defmt::info;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::{Point, RgbColor, Size};
@@ -17,8 +16,8 @@ extern crate alloc;
 #[derive(Clone, Copy)]
 pub enum TilesSize {
     Grass = 0x029b,
-    Bush1 = 0x0383,
-    Bush2 = 0x04fb,
+    Bush1 = 0x03bb,
+    Bush2 = 0x03bc,
 }
 
 #[derive(Clone, Copy)]
@@ -39,7 +38,7 @@ pub struct Level1;
 pub struct Level2;
 
 pub struct Level<'a, L> {
-    level: [[u16; 7]; 10],
+    level: [[u16; 10]; 15],
     tiles: FnvIndexMap<Tiles, &'a [u8], 32>,
     idx: PhantomData<L>,
 }
@@ -47,16 +46,21 @@ pub struct Level<'a, L> {
 impl<'a> Level<'a, Level1> {
     pub fn new() -> Self {
         let level = [
-            [0, 0, 1, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 1, 0, 0, 0, 0],
-            [0, 0, 1, 0, 1, 0, 0],
-            [1, 0, 1, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 1, 0, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 1, 0, 2, 0, 0, 0],
+            [0, 2, 0, 0, 0, 1, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 2, 0, 1, 0, 2, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 2, 0],
+            [0, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 2, 0, 0],
+            [0, 0, 0, 1, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 1, 1, 0, 2, 0, 2, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ];
 
         let tiles: FnvIndexMap<Tiles, &'a [u8], 32> = FnvIndexMap::new();
@@ -94,6 +98,12 @@ impl<'a, D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for Level<'a
             .await;
         let bush1 = D::tga_to_data(bush1.as_slice());
 
+        const B2_SIZE: usize = TilesSize::Bush1 as usize;
+        let bush2 = flash
+            .load_tga::<B2_SIZE, { B2_SIZE * 4 }>(TilesOffset::Bush2.into())
+            .await;
+        let bush2 = D::tga_to_data(bush2.as_slice());
+
         for x in 0..self.level.len() {
             for y in 0..self.level[0].len() {
                 match self.level[x][y] {
@@ -108,19 +118,18 @@ impl<'a, D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for Level<'a
                             )
                             .await;
                     }
-                    // 2 => {
-                    //     display
-                    //         .draw_data(
-                    //             Rectangle::new(
-                    //                 Point::new((x * 32) as i32, (y * 32) as i32),
-                    //                 Size::new(32, 32),
-                    //             ),
-                    //             bush2.as_slice(),
-                    //         )
-                    //         .await;
-                    // }
+                    2 => {
+                        display
+                            .draw_data(
+                                Rectangle::new(
+                                    Point::new((x * 32) as i32, (y * 32) as i32),
+                                    Size::new(32, 32),
+                                ),
+                                bush2.as_slice(),
+                            )
+                            .await;
+                    }
                     _ => {
-                        // info!("{} {}", x as i32, y as i32);
                         display
                             .draw_data(
                                 Rectangle::new(

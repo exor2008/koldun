@@ -2,7 +2,7 @@ use crate::game::flash::Flash;
 use crate::game::state_mashine::states::level::{Level, Level1};
 use crate::game::state_mashine::states::ControlEvent;
 use crate::game::state_mashine::states::State;
-use crate::ili9431::GameDisplay;
+use crate::ili9486::GameDisplay;
 use alloc::boxed::Box;
 use async_trait::async_trait;
 use core::marker::Send;

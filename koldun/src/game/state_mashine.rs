@@ -1,7 +1,7 @@
 use crate::game::flash::Flash;
 use crate::game::state_mashine::states::initial::Initial;
 use crate::game::state_mashine::states::{ControlEvent, State};
-use crate::ili9431::GameDisplay;
+use crate::ili9486::GameDisplay;
 use alloc::boxed::Box;
 use core::marker::Send;
 extern crate alloc;

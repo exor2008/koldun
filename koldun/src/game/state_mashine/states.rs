@@ -1,5 +1,5 @@
 use crate::game::flash::Flash;
-use crate::ili9431::GameDisplay;
+use crate::ili9486::GameDisplay;
 use alloc::boxed::Box;
 use async_trait::async_trait;
 extern crate alloc;

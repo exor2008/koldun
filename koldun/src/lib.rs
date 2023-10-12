@@ -7,6 +7,7 @@
 #![feature(error_in_core)]
 #![feature(impl_trait_in_assoc_type)]
 #![feature(const_trait_impl)]
+#![feature(slice_flatten)]
 
 pub mod game;
-pub mod ili9431;
+pub mod ili9486;
