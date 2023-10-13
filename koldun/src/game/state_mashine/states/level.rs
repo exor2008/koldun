@@ -7,7 +7,7 @@ use crate::ili9486::GameDisplay;
 use alloc::boxed::Box;
 use async_trait::async_trait;
 use defmt::info;
-use embedded_graphics::pixelcolor::Rgb565;
+use embedded_graphics::pixelcolor::Rgb666;
 use embedded_graphics::prelude::{Point, RgbColor, Size};
 use embedded_graphics::primitives::Rectangle;
 use heapless::FnvIndexMap;

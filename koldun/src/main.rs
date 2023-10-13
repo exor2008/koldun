@@ -18,7 +18,7 @@ use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::text::DecorationColor;
 use embedded_graphics::{
     mono_font::{ascii::FONT_9X15_BOLD, iso_8859_5::FONT_9X18_BOLD, MonoTextStyle},
-    pixelcolor::Rgb565,
+    pixelcolor::Rgb666,
     prelude::*,
     text::Text,
 };
@@ -89,7 +89,7 @@ async fn main(spawner: Spawner) {
     );
 
     let mut display = Ili9486::new(pio_interface);
-    display.set_pixel_format(PixelFormat::Bit16).await;
+    display.set_pixel_format(PixelFormat::Bit18).await;
     display.sleep_out().await;
     display.inversion_off().await;
     display
@@ -106,9 +106,9 @@ async fn main(spawner: Spawner) {
     display.display_on().await;
     display.idle_mode_off().await;
 
-    display.clear(Rgb565::RED).unwrap();
+    display.clear(Rgb666::RED).unwrap();
 
-    let data = &[[0b1111_1000u8, 0b0001_1111u8]; 32 * 32];
+    let data = &[[0b0000_0000u8, 0b0000_0000u8, 0b1111_1100u8]; 32 * 32];
     display
         .draw_data(
             Rectangle::new(Point::new(200, 200), Size::new(32, 32)),
@@ -116,14 +116,14 @@ async fn main(spawner: Spawner) {
         )
         .await;
 
-    let style = MonoTextStyle::new(&FONT_9X15_BOLD, Rgb565::CSS_DARK_BLUE);
+    let style = MonoTextStyle::new(&FONT_9X15_BOLD, Rgb666::CSS_DARK_BLUE);
     Text::new("Hello Rust! FONT_10X20", Point::new(5, 50), style)
         .draw(&mut display)
         .unwrap();
 
-    let mut style = MonoTextStyle::new(&FONT_9X18_BOLD, Rgb565::CSS_GREEN);
-    style.background_color = Some(Rgb565::CSS_BLANCHED_ALMOND);
-    style.underline_color = DecorationColor::Custom(Rgb565::CSS_TURQUOISE);
+    let mut style = MonoTextStyle::new(&FONT_9X18_BOLD, Rgb666::CSS_GREEN);
+    style.background_color = Some(Rgb666::CSS_BLANCHED_ALMOND);
+    style.underline_color = DecorationColor::Custom(Rgb666::CSS_TURQUOISE);
 
     Text::new("Хэллоу, пьяный волшкебник! ", Point::new(30, 100), style)
         .draw(&mut display)
@@ -136,18 +136,20 @@ async fn main(spawner: Spawner) {
         display.bounding_box().center() + Point::new(0, 16),
         VerticalPosition::Baseline,
         HorizontalAlignment::Center,
-        FontColor::Transparent(Rgb565::CSS_AQUAMARINE),
+        FontColor::Transparent(Rgb666::CSS_AQUAMARINE),
         &mut display,
     )
     .unwrap();
 
-    let img = include_bytes!("test2.tga");
-    let tga: Tga<Rgb565> = Tga::from_slice(img).unwrap();
+    let img = include_bytes!("test3.tga");
+    let tga: Tga<Rgb666> = Tga::from_slice(img).unwrap();
     // tga.header().image_origin = TopRight;
-    // let tga2: Tga<Rgb565> = tga.into();
+    // let tga2: Tga<Rgb666> = tga.into();
 
-    let mut pixels: Vec<_, { 32 * 32 * 2 }> =
+    let pixels: Vec<_, { 32 * 32 * 3 }> =
         tga.pixels().map(|p| color_to_data(p.1)).flatten().collect();
+    // info!("{}", pixels[0..3]);
+
     // pixels.reverse();
     display
         .draw_data(
@@ -193,9 +195,12 @@ async fn main(spawner: Spawner) {
     }
 }
 
-fn color_to_data(color: Rgb565) -> [u8; 2] {
-    let b = color.to_ne_bytes();
-    [b[1], b[0]]
+fn color_to_data(color: Rgb666) -> [u8; 3] {
+    let bytes = color.to_ne_bytes();
+    let r = bytes[2] << 6 | bytes[1] >> 2;
+    let g = bytes[1] << 4 | bytes[0] >> 4;
+    let b = bytes[0] << 2;
+    [r, g, b]
 }
 
 #[embassy_executor::task]

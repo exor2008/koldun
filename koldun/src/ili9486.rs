@@ -8,7 +8,7 @@ use embassy_futures::block_on;
 use embedded_graphics::draw_target::DrawTarget;
 use embedded_graphics::mono_font::ascii::FONT_9X15_BOLD;
 use embedded_graphics::mono_font::MonoTextStyle;
-use embedded_graphics::pixelcolor::Rgb565;
+use embedded_graphics::pixelcolor::Rgb666;
 use embedded_graphics::prelude::*;
 use embedded_graphics::prelude::{Dimensions, Point, Size};
 use embedded_graphics::primitives::Rectangle;
@@ -46,7 +46,7 @@ pub trait DrawTargetText: DrawTarget {
 }
 
 #[async_trait]
-pub trait GameDisplay: Display<u8> + DrawTargetText<Color = Rgb565, Error = Infallible> {}
+pub trait GameDisplay: Display<u8> + DrawTargetText<Color = Rgb666, Error = Infallible> {}
 
 #[async_trait]
 pub trait Display<DataFormat> {
@@ -72,7 +72,7 @@ pub trait Display<DataFormat> {
     async fn tearing_effect_line_on(&mut self);
     async fn column_address_set(&mut self, start: u16, end: u16);
     async fn page_address_set(&mut self, start: u16, end: u16);
-    fn tga_to_data(data: &[u8]) -> Vec<DataFormat, { 32 * 32 * 2 }>;
+    fn tga_to_data(data: &[u8]) -> Vec<DataFormat, { 32 * 32 * 3 }>;
 }
 
 pub struct Ili9486<C: PioParallel<u8>>
@@ -90,9 +90,12 @@ where
         Ili9486 { pio_interface }
     }
 
-    fn color_to_data(color: Rgb565) -> [u8; 2] {
-        let b = color.to_ne_bytes();
-        [b[1], b[0]]
+    fn color_to_data(color: Rgb666) -> [u8; 3] {
+        let bytes = color.to_ne_bytes();
+        let r = bytes[2] << 6 | bytes[1] >> 2;
+        let g = bytes[1] << 4 | bytes[0] >> 4;
+        let b = bytes[0] << 2;
+        [r, g, b]
     }
 }
 
@@ -109,7 +112,7 @@ impl<C: PioParallel<u8>> DrawTarget for Ili9486<C>
 where
     C: Send,
 {
-    type Color = Rgb565;
+    type Color = Rgb666;
     type Error = Infallible;
 
     fn clear(&mut self, color: Self::Color) -> Result<(), Self::Error> {
@@ -150,7 +153,7 @@ where
     fn fill_solid(&mut self, area: &Rectangle, color: Self::Color) -> Result<(), Self::Error> {
         let color = Self::color_to_data(color);
         let data = &[color; 32 * 32];
-        let mut v: Vec<[u8; 2], { 32 * 32 }> = Vec::new();
+        let mut v: Vec<[u8; 3], { 32 * 32 }> = Vec::new();
         v.extend_from_slice(data).unwrap();
         let v = v.flatten();
 
@@ -185,7 +188,7 @@ where
 
 #[async_trait]
 impl<C: PioParallel<u8> + Send> Display<u8> for Ili9486<C> {
-    type Color = Rgb565;
+    type Color = Rgb666;
 
     async fn set_active_area(&mut self, area: Rectangle) {
         let start = area.top_left;
@@ -314,9 +317,9 @@ impl<C: PioParallel<u8> + Send> Display<u8> for Ili9486<C> {
             .await;
     }
 
-    fn tga_to_data(data: &[u8]) -> Vec<u8, { 32 * 32 * 2 }> {
+    fn tga_to_data(data: &[u8]) -> Vec<u8, { 32 * 32 * 3 }> {
         let tga: Tga<Self::Color> = Tga::from_slice(data).unwrap();
-        let pixels: Vec<_, { 32 * 32 * 2 }> = tga
+        let pixels: Vec<_, { 32 * 32 * 3 }> = tga
             .pixels()
             .map(|p| Self::color_to_data(p.1))
             .flatten()

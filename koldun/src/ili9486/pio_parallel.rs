@@ -112,7 +112,7 @@ impl<'a, P: Instance, const N: usize> PioParallel8<'a, P, N> {
 #[async_trait]
 impl<'a, P: Instance + Send, const N: usize> PioParallel<u8> for PioParallel8<'a, P, N> {
     async fn write_command(&mut self, command: Command, words: &[u8]) {
-        let mut data: Vec<u8, { 32 * 32 * 2 + 1 }> = Vec::new();
+        let mut data: Vec<u8, { 32 * 32 * 3 + 1 }> = Vec::new();
         data.extend_from_slice(&[command as u8]).unwrap();
         data.extend_from_slice(words).unwrap();
 
