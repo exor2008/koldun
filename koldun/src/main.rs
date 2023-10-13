@@ -6,11 +6,12 @@
 use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_rp::bind_interrupts;
 use embassy_rp::flash::Flash as RPFlash;
-use embassy_rp::gpio::{Level, Output};
-use embassy_rp::peripherals::PIO0;
+use embassy_rp::gpio::Pull;
+use embassy_rp::gpio::{Input, Level, Output, Pin};
+use embassy_rp::peripherals::{PIN_13, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
+use embassy_rp::{bind_interrupts, Peripheral};
 use embassy_time::{Duration, Ticker, Timer};
 use embedded_alloc::Heap;
 use embedded_graphics::primitives::Rectangle;
@@ -42,7 +43,7 @@ bind_interrupts!(struct Irqs {
 });
 
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) {
+async fn main(spawner: Spawner) {
     info!("Initializing heap...");
     {
         use core::mem::MaybeUninit;
@@ -55,6 +56,8 @@ async fn main(_spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
     let mut reset = Output::new(p.PIN_22, Level::Low);
+    let up = Input::new(p.PIN_13, Pull::Down);
+    spawner.spawn(buttons_task(spawner, up)).unwrap();
 
     // reset
     reset.set_low();
@@ -186,10 +189,22 @@ async fn main(_spawner: Spawner) {
         //     .await;
 
         // ticker.next().await;
+        Timer::after(Duration::from_millis(10)).await;
     }
 }
 
 fn color_to_data(color: Rgb565) -> [u8; 2] {
     let b = color.to_ne_bytes();
     [b[1], b[0]]
+}
+
+#[embassy_executor::task]
+async fn buttons_task(_spawner: Spawner, mut up: Input<'static, PIN_13>) {
+    loop {
+        up.wait_for_any_edge().await;
+        match up.is_high() {
+            true => info!("Button down"),
+            false => info!("Button up"),
+        }
+    }
 }

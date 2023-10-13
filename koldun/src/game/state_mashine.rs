@@ -14,11 +14,8 @@ pub struct StateMachine<D: GameDisplay, F: Flash> {
     flash: F,
 }
 
-impl<D: GameDisplay + Send, F: Flash + Send + Sync> StateMachine<D, F> {
-    pub fn new(display: D, flash: F) -> StateMachine<D, F>
-    where
-        D: GameDisplay + Send + 'static,
-    {
+impl<D: GameDisplay + Send + 'static, F: Flash + Send + Sync> StateMachine<D, F> {
+    pub fn new(display: D, flash: F) -> StateMachine<D, F> {
         let state: Box<Initial> = Box::new(Initial::new());
         let state = state as Box<dyn State<D, F>>;
         StateMachine {

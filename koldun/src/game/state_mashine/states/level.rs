@@ -84,8 +84,6 @@ impl<'a, D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for Level<'a
     }
     async fn on_init(&mut self, display: &mut D, flash: &mut F) {
         info!("Level1 Init");
-        display.clear(Rgb565::GREEN).unwrap();
-
         const GRASS_SIZE: usize = TilesSize::Grass as usize;
         let grass = flash
             .load_tga::<GRASS_SIZE, { GRASS_SIZE * 4 }>(TilesOffset::Grass.into())
