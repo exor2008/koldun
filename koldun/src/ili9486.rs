@@ -69,6 +69,9 @@ pub trait Display<DataFormat> {
     async fn display_on(&mut self);
     async fn idle_mode_off(&mut self);
     async fn draw_data(&mut self, area: Rectangle, data: &[DataFormat]);
+    async fn draw_solid(&mut self, origin: Point, color: Self::Color);
+    async fn draw_solid_area(&mut self, area: Rectangle, color: Self::Color);
+    async fn draw_tile(&mut self, origin: Point, data: &[DataFormat]);
     async fn tearing_effect_line_on(&mut self);
     async fn column_address_set(&mut self, start: u16, end: u16);
     async fn page_address_set(&mut self, start: u16, end: u16);
@@ -278,6 +281,34 @@ impl<C: PioParallel<u8> + Send> Display<u8> for Ili9486<C> {
     }
 
     async fn draw_data(&mut self, area: Rectangle, data: &[u8]) {
+        self.set_active_area(area).await;
+        self.pio_interface
+            .write_command(Command::MemoryWrite, data)
+            .await;
+    }
+
+    async fn draw_solid(&mut self, origin: Point, color: Self::Color) {
+        let color = Self::color_to_data(color);
+        let data = &[color; 32 * 32];
+        let mut v: Vec<[u8; 2], { 32 * 32 }> = Vec::new();
+        v.extend_from_slice(data).unwrap();
+
+        self.draw_tile(origin, v.flatten()).await;
+    }
+
+    async fn draw_solid_area(&mut self, area: Rectangle, color: Self::Color) {
+        let area = self.bounding_box().intersection(&area);
+        if let Some(bottom_right) = area.bottom_right() {
+            for x in (area.top_left.x..bottom_right.x).step_by(32) {
+                for y in (area.top_left.y..bottom_right.y).step_by(32) {
+                    self.draw_solid(Point::new(x, y), color).await;
+                }
+            }
+        }
+    }
+
+    async fn draw_tile(&mut self, origin: Point, data: &[u8]) {
+        let area = Rectangle::new(origin, Size::new(32, 32));
         self.set_active_area(area).await;
         self.pio_interface
             .write_command(Command::MemoryWrite, data)

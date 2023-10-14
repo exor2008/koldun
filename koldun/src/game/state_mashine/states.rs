@@ -1,3 +1,4 @@
+use crate::control::Controls;
 use crate::game::flash::Flash;
 use crate::ili9486::GameDisplay;
 use alloc::boxed::Box;
@@ -8,18 +9,11 @@ pub mod initial;
 pub mod level;
 pub mod start_menu;
 
-pub enum ControlEvent {
-    Up,
-    Down,
-    ButtonDown,
-    ButtonUp,
-}
-
 #[async_trait]
 pub trait State<D: GameDisplay, F: Flash> {
     async fn on_control(
         &mut self,
-        event: ControlEvent,
+        event: Controls,
         display: &mut D,
     ) -> Option<Box<dyn State<D, F>>>;
 

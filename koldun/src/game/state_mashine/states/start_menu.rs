@@ -1,17 +1,20 @@
+use crate::control::{Buttons, Controls, States};
+use crate::game::colors;
 use crate::game::flash::Flash;
 use crate::game::state_mashine::states::level::{Level, Level1};
-use crate::game::state_mashine::states::ControlEvent;
 use crate::game::state_mashine::states::State;
+use crate::ili9486::Display;
 use crate::ili9486::GameDisplay;
 use alloc::boxed::Box;
 use async_trait::async_trait;
 use core::marker::Send;
 use defmt::info;
-use embedded_graphics::pixelcolor::{Rgb565, Rgb888};
-use embedded_graphics::prelude::Point;
-use embedded_graphics::prelude::RgbColor;
-use embedded_graphics::prelude::WebColors;
+use embedded_graphics::pixelcolor::Rgb565;
+use embedded_graphics::prelude::{Point, Size};
+use embedded_graphics::primitives::Rectangle;
 extern crate alloc;
+
+const MAX_COMMANDS: u16 = 3;
 
 pub enum StartMenuCommands {
     NewGame,
@@ -19,65 +22,113 @@ pub enum StartMenuCommands {
 }
 
 pub struct StartMenu {
-    commands: u16,
+    command: u16,
 }
 
 impl StartMenu {
     pub fn new() -> Self {
-        StartMenu { commands: 8 }
+        StartMenu { command: 0 }
     }
-}
 
-#[async_trait]
-impl<D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for StartMenu {
-    async fn on_control(
-        &mut self,
-        event: ControlEvent,
-        _display: &mut D,
-    ) -> Option<Box<dyn State<D, F>>> {
-        match event {
-            ControlEvent::ButtonDown => {
-                info!("Start menu working");
-                None
-            }
-            _ => {
-                info!("Level created");
-                Some(Box::new(Level::<Level1>::new()))
-                // None
-            }
+    async fn on_up<D, F>(&mut self, display: &mut D) -> Option<Box<dyn State<D, F>>>
+    where
+        D: GameDisplay + Send + Display<u8, Color = Rgb565>,
+        F: Flash + Send + Sync,
+    {
+        self.command = match self.command < MAX_COMMANDS - 1 {
+            true => self.command + 1,
+            false => 0,
+        };
+
+        self.redraw(display).await;
+        None
+    }
+
+    async fn on_select<D, F>(&mut self, _display: &mut D) -> Option<Box<dyn State<D, F>>>
+    where
+        D: GameDisplay + Display<u8, Color = Rgb565> + Send,
+        F: Flash + Send + Sync,
+    {
+        match self.command {
+            0 => Some(Box::new(Level::<Level1>::new())),
+            _ => None,
         }
     }
 
-    async fn on_init(&mut self, display: &mut D, flash: &mut F) {
-        info!("StartMenu Init");
-        display.clear(Rgb888::new(4, 1, 10).into()).unwrap();
+    async fn redraw<D>(&mut self, display: &mut D)
+    where
+        D: GameDisplay + Display<u8, Color = Rgb565>,
+    {
+        display
+            .draw_solid_area(
+                Rectangle::new(Point::new(45, 55), Size::new(70, 40)),
+                colors::START_MENU_BG,
+            )
+            .await;
 
         display.draw_text(
             "KOLDUN the Game",
             Point::new(50, 50),
-            Rgb888::new(32, 55, 70).into(),
+            colors::START_MENU_TILE,
             None,
         );
 
         display.draw_text(
             "New game",
             Point::new(50, 70),
-            Rgb888::new(65, 110, 143).into(),
-            Some(Rgb888::new(11, 12, 43).into()),
+            colors::START_MENU_TEXT,
+            match self.command {
+                0 => Some(colors::START_MENU_TEXT_BG),
+                _ => None,
+            },
         );
 
         display.draw_text(
             "Continue",
             Point::new(50, 85),
-            Rgb888::new(65, 110, 143).into(),
-            None,
+            colors::START_MENU_TEXT,
+            match self.command {
+                1 => Some(colors::START_MENU_TEXT_BG),
+                _ => None,
+            },
         );
 
         display.draw_text(
             "Options",
             Point::new(50, 100),
-            Rgb888::new(65, 110, 143).into(),
-            None,
+            colors::START_MENU_TEXT,
+            match self.command {
+                2 => Some(colors::START_MENU_TEXT_BG),
+                _ => None,
+            },
         );
+    }
+}
+
+#[async_trait]
+impl<D, F> State<D, F> for StartMenu
+where
+    D: GameDisplay + Send + Display<u8, Color = Rgb565>,
+    F: Flash + Send + Sync,
+{
+    async fn on_control(
+        &mut self,
+        event: Controls,
+        display: &mut D,
+    ) -> Option<Box<dyn State<D, F>>> {
+        match event {
+            Controls::BUTTON(Buttons::UP(States::PRESSED)) => self.on_up::<D, F>(display).await,
+            Controls::BUTTON(Buttons::RIGHT(States::PRESSED)) => {
+                self.on_select::<D, F>(display).await
+            }
+            _ => None,
+        }
+    }
+
+    async fn on_init(&mut self, display: &mut D, _flash: &mut F) {
+        info!("StartMenu Init");
+        display.clear(colors::START_MENU_BG).unwrap();
+
+        self.redraw(display).await;
     }
 }

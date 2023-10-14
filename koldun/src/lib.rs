@@ -9,5 +9,7 @@
 #![feature(const_trait_impl)]
 #![feature(slice_flatten)]
 
+pub mod control;
 pub mod game;
+pub mod heap;
 pub mod ili9486;

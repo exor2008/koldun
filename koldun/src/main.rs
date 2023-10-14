@@ -6,14 +6,16 @@
 use defmt::*;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
+use embassy_rp::bind_interrupts;
 use embassy_rp::flash::Flash as RPFlash;
 use embassy_rp::gpio::Pull;
-use embassy_rp::gpio::{Input, Level, Output, Pin};
-use embassy_rp::peripherals::{PIN_13, PIO0};
+use embassy_rp::gpio::{Input, Level, Output};
+use embassy_rp::peripherals::{PIN_10, PIN_11, PIN_12, PIN_13, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
-use embassy_rp::{bind_interrupts, Peripheral};
+use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
+use embassy_sync::channel::Channel;
 use embassy_time::{Duration, Ticker, Timer};
-use embedded_alloc::Heap;
+
 use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::text::DecorationColor;
 use embedded_graphics::{
@@ -23,9 +25,10 @@ use embedded_graphics::{
     text::Text,
 };
 use heapless::Vec;
+use koldun::control::{Buttons, Controls, States};
 use koldun::game::flash::FlashAccess;
-use koldun::game::state_mashine::states::ControlEvent;
 use koldun::game::state_mashine::StateMachine;
+use koldun::heap;
 use koldun::ili9486::{pio_parallel::PioParallel8, Display, Ili9486, Order, PixelFormat};
 use panic_probe as _;
 use tinytga::Tga;
@@ -35,29 +38,28 @@ use u8g2_fonts::types::{HorizontalAlignment, VerticalPosition};
 use u8g2_fonts::FontRenderer;
 extern crate alloc;
 
-#[global_allocator]
-static HEAP: Heap = Heap::empty();
-
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
 });
 
+static CONTROL_CHANNEL: Channel<ThreadModeRawMutex, Controls, 1> = Channel::new();
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    info!("Initializing heap...");
-    {
-        use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 1024 * 30; //kB
-        static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
-        unsafe { HEAP.init(HEAP_MEM.as_ptr() as usize, HEAP_SIZE) }
-    }
-
     info!("Start");
+    heap::init();
     let p = embassy_rp::init(Default::default());
 
     let mut reset = Output::new(p.PIN_22, Level::Low);
+
     let up = Input::new(p.PIN_13, Pull::Down);
-    spawner.spawn(buttons_task(spawner, up)).unwrap();
+    spawner.spawn(button_up_task(spawner, up)).unwrap();
+    let down = Input::new(p.PIN_12, Pull::Down);
+    spawner.spawn(button_down_task(spawner, down)).unwrap();
+    let left = Input::new(p.PIN_11, Pull::Down);
+    spawner.spawn(button_left_task(spawner, left)).unwrap();
+    let right = Input::new(p.PIN_10, Pull::Down);
+    spawner.spawn(button_right_task(spawner, right)).unwrap();
 
     // reset
     reset.set_low();
@@ -146,7 +148,7 @@ async fn main(spawner: Spawner) {
     // tga.header().image_origin = TopRight;
     // let tga2: Tga<Rgb565> = tga.into();
 
-    let mut pixels: Vec<_, { 32 * 32 * 2 }> =
+    let pixels: Vec<_, { 32 * 32 * 2 }> =
         tga.pixels().map(|p| color_to_data(p.1)).flatten().collect();
     // pixels.reverse();
     display
@@ -156,21 +158,23 @@ async fn main(spawner: Spawner) {
         )
         .await;
 
-    Timer::after(Duration::from_secs(1)).await;
+    Timer::after(Duration::from_millis(10)).await;
 
     let flash = RPFlash::new(p.FLASH, p.DMA_CH1);
     let flash = FlashAccess::new(flash);
+
+    info!("Heap used {}", heap::HEAP.used());
     let mut sm = StateMachine::new(display, flash);
-    sm.on_control(ControlEvent::ButtonDown).await;
-    Timer::after(Duration::from_secs(1)).await;
-    sm.on_control(ControlEvent::ButtonDown).await;
-    Timer::after(Duration::from_secs(1)).await;
-    sm.on_control(ControlEvent::Down).await;
-    Timer::after(Duration::from_secs(1)).await;
-    sm.on_control(ControlEvent::ButtonDown).await;
+    sm.on_control(Controls::BUTTON(Buttons::DOWN(States::PRESSED)))
+        .await;
+    info!("Heap used {}", heap::HEAP.used());
+
     // let mut c = 0;
     // let mut ticker = Ticker::every(Duration::from_hz(10));
     loop {
+        let command = CONTROL_CHANNEL.receive().await;
+        sm.on_control(command).await;
+        info!("Heap used {}", heap::HEAP.used());
         // c += 1;
         // c = if c >= 318 { 0 } else { c };
 
@@ -189,7 +193,7 @@ async fn main(spawner: Spawner) {
         //     .await;
 
         // ticker.next().await;
-        Timer::after(Duration::from_millis(10)).await;
+        // Timer::after(Duration::from_millis(10)).await;
     }
 }
 
@@ -199,12 +203,49 @@ fn color_to_data(color: Rgb565) -> [u8; 2] {
 }
 
 #[embassy_executor::task]
-async fn buttons_task(_spawner: Spawner, mut up: Input<'static, PIN_13>) {
+async fn button_up_task(_spawner: Spawner, mut up: Input<'static, PIN_13>) {
     loop {
         up.wait_for_any_edge().await;
-        match up.is_high() {
-            true => info!("Button down"),
-            false => info!("Button up"),
-        }
+        let message = match up.is_high() {
+            true => Controls::BUTTON(Buttons::UP(States::PRESSED)),
+            false => Controls::BUTTON(Buttons::UP(States::RELEASED)),
+        };
+        CONTROL_CHANNEL.send(message).await
+    }
+}
+
+#[embassy_executor::task]
+async fn button_down_task(_spawner: Spawner, mut down: Input<'static, PIN_12>) {
+    loop {
+        down.wait_for_any_edge().await;
+        let message = match down.is_high() {
+            true => Controls::BUTTON(Buttons::DOWN(States::PRESSED)),
+            false => Controls::BUTTON(Buttons::DOWN(States::RELEASED)),
+        };
+        CONTROL_CHANNEL.send(message).await
+    }
+}
+
+#[embassy_executor::task]
+async fn button_left_task(_spawner: Spawner, mut left: Input<'static, PIN_11>) {
+    loop {
+        left.wait_for_any_edge().await;
+        let message = match left.is_high() {
+            true => Controls::BUTTON(Buttons::LEFT(States::PRESSED)),
+            false => Controls::BUTTON(Buttons::LEFT(States::RELEASED)),
+        };
+        CONTROL_CHANNEL.send(message).await
+    }
+}
+
+#[embassy_executor::task]
+async fn button_right_task(_spawner: Spawner, mut right: Input<'static, PIN_10>) {
+    loop {
+        right.wait_for_any_edge().await;
+        let message = match right.is_high() {
+            true => Controls::BUTTON(Buttons::RIGHT(States::PRESSED)),
+            false => Controls::BUTTON(Buttons::RIGHT(States::RELEASED)),
+        };
+        CONTROL_CHANNEL.send(message).await
     }
 }

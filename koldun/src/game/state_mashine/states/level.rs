@@ -1,14 +1,13 @@
-use core::marker::PhantomData;
-
+use crate::control::Controls;
 use crate::game::flash::Flash;
-use crate::game::state_mashine::states::ControlEvent;
 use crate::game::state_mashine::State;
+use crate::heap;
 use crate::ili9486::GameDisplay;
 use alloc::boxed::Box;
 use async_trait::async_trait;
+use core::marker::PhantomData;
 use defmt::info;
-use embedded_graphics::pixelcolor::Rgb565;
-use embedded_graphics::prelude::{Point, RgbColor, Size};
+use embedded_graphics::prelude::{Point, Size};
 use embedded_graphics::primitives::Rectangle;
 use heapless::FnvIndexMap;
 extern crate alloc;
@@ -18,6 +17,11 @@ pub enum TilesSize {
     Grass = 0x029b,
     Bush1 = 0x03bb,
     Bush2 = 0x03bc,
+    Floor = 0x02ab,
+    Wall1 = 0x0733,
+    Wall2 = 0x07bb,
+    Wall3 = 0x0813,
+    Wall4 = 0x065b,
 }
 
 #[derive(Clone, Copy)]
@@ -25,6 +29,11 @@ pub enum TilesOffset {
     Grass = 0x0000,
     Bush1 = 0x1000,
     Bush2 = 0x2000,
+    Floor = 0x3000,
+    Wall1 = 0x4000,
+    Wall2 = 0x5000,
+    Wall3 = 0x6000,
+    Wall4 = 0x7000,
 }
 
 #[derive(Clone, Copy)]
@@ -46,24 +55,25 @@ pub struct Level<'a, L> {
 impl<'a> Level<'a, Level1> {
     pub fn new() -> Self {
         let level = [
-            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 1, 0, 0, 1, 1, 1, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 0, 1, 0, 2, 0, 0, 0],
-            [0, 2, 0, 0, 0, 1, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 2, 0, 1, 0, 2, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 2, 0],
-            [0, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 4, 2, 3, 2, 3, 4, 0, 0],
+            [0, 0, 3, 0, 0, 0, 0, 1, 0, 0],
             [0, 0, 1, 0, 0, 0, 0, 2, 0, 0],
-            [0, 0, 0, 1, 0, 0, 0, 1, 0, 0],
-            [0, 0, 0, 1, 1, 0, 2, 0, 2, 0],
+            [0, 0, 2, 0, 0, 0, 0, 3, 0, 0],
+            [0, 0, 4, 2, 1, 0, 3, 4, 0, 0],
+            [0, 0, 3, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 2, 0, 0],
+            [0, 0, 2, 0, 1, 2, 3, 4, 0, 0],
+            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 3, 0, 0, 0, 0, 0],
+            [0, 0, 4, 2, 2, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ];
 
         let tiles: FnvIndexMap<Tiles, &'a [u8], 32> = FnvIndexMap::new();
+        // info!("Heap used <new> {}", heap::used());
         Level {
             level,
             tiles,
@@ -76,7 +86,7 @@ impl<'a> Level<'a, Level1> {
 impl<'a, D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for Level<'a, Level1> {
     async fn on_control(
         &mut self,
-        _event: ControlEvent,
+        _event: Controls,
         _display: &mut D,
     ) -> Option<Box<dyn State<D, F>>> {
         info!("Level working");
@@ -84,23 +94,38 @@ impl<'a, D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for Level<'a
     }
     async fn on_init(&mut self, display: &mut D, flash: &mut F) {
         info!("Level1 Init");
-        const GRASS_SIZE: usize = TilesSize::Grass as usize;
-        let grass = flash
-            .load_tga::<GRASS_SIZE, { GRASS_SIZE * 4 }>(TilesOffset::Grass.into())
+        // info!("Heap used <on_init> begin {}", heap::used());
+        const FLOOR_SIZE: usize = TilesSize::Floor as usize;
+        let floor = flash
+            .load_tga::<FLOOR_SIZE, { FLOOR_SIZE * 4 }>(TilesOffset::Floor.into())
             .await;
-        let grass = D::tga_to_data(grass.as_slice());
+        let floor = D::tga_to_data(floor.as_slice());
 
-        const B1_SIZE: usize = TilesSize::Bush1 as usize;
-        let bush1 = flash
-            .load_tga::<B1_SIZE, { B1_SIZE * 4 }>(TilesOffset::Bush1.into())
+        const W1_SIZE: usize = TilesSize::Wall1 as usize;
+        let wall1 = flash
+            .load_tga::<W1_SIZE, { W1_SIZE * 4 }>(TilesOffset::Wall1.into())
             .await;
-        let bush1 = D::tga_to_data(bush1.as_slice());
+        let wall1 = D::tga_to_data(wall1.as_slice());
 
-        const B2_SIZE: usize = TilesSize::Bush1 as usize;
-        let bush2 = flash
-            .load_tga::<B2_SIZE, { B2_SIZE * 4 }>(TilesOffset::Bush2.into())
+        const W2_SIZE: usize = TilesSize::Wall2 as usize;
+        let wall2 = flash
+            .load_tga::<W2_SIZE, { W2_SIZE * 4 }>(TilesOffset::Wall2.into())
             .await;
-        let bush2 = D::tga_to_data(bush2.as_slice());
+        let wall2 = D::tga_to_data(wall2.as_slice());
+
+        const W3_SIZE: usize = TilesSize::Wall3 as usize;
+        let wall3 = flash
+            .load_tga::<W3_SIZE, { W3_SIZE * 4 }>(TilesOffset::Wall3.into())
+            .await;
+        let wall3 = D::tga_to_data(wall3.as_slice());
+
+        const W4_SIZE: usize = TilesSize::Wall4 as usize;
+        let wall4 = flash
+            .load_tga::<W4_SIZE, { W4_SIZE * 4 }>(TilesOffset::Wall4.into())
+            .await;
+        let wall4 = D::tga_to_data(wall4.as_slice());
+
+        // info!("Heap used <on_init> mid {}", heap::used());
 
         for x in 0..self.level.len() {
             for y in 0..self.level[0].len() {
@@ -112,7 +137,7 @@ impl<'a, D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for Level<'a
                                     Point::new((x * 32) as i32, (y * 32) as i32),
                                     Size::new(32, 32),
                                 ),
-                                bush1.as_slice(),
+                                wall1.as_slice(),
                             )
                             .await;
                     }
@@ -123,10 +148,33 @@ impl<'a, D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for Level<'a
                                     Point::new((x * 32) as i32, (y * 32) as i32),
                                     Size::new(32, 32),
                                 ),
-                                bush2.as_slice(),
+                                wall2.as_slice(),
                             )
                             .await;
                     }
+                    3 => {
+                        display
+                            .draw_data(
+                                Rectangle::new(
+                                    Point::new((x * 32) as i32, (y * 32) as i32),
+                                    Size::new(32, 32),
+                                ),
+                                wall3.as_slice(),
+                            )
+                            .await;
+                    }
+                    4 => {
+                        display
+                            .draw_data(
+                                Rectangle::new(
+                                    Point::new((x * 32) as i32, (y * 32) as i32),
+                                    Size::new(32, 32),
+                                ),
+                                wall4.as_slice(),
+                            )
+                            .await;
+                    }
+
                     _ => {
                         display
                             .draw_data(
@@ -134,13 +182,14 @@ impl<'a, D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for Level<'a
                                     Point::new((x * 32) as i32, (y * 32) as i32),
                                     Size::new(32, 32),
                                 ),
-                                grass.as_slice(),
+                                floor.as_slice(),
                             )
                             .await;
                     }
                 }
             }
         }
+        // info!("Heap used <on_init> end {}", heap::used());
     }
 }
 
