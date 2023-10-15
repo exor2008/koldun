@@ -1,12 +1,15 @@
 use crate::control::Controls;
+use crate::game::colors;
 use crate::game::flash::Flash;
 use crate::game::state_mashine::State;
 use crate::heap;
+use crate::ili9486::Display;
 use crate::ili9486::GameDisplay;
 use alloc::boxed::Box;
 use async_trait::async_trait;
 use core::marker::PhantomData;
 use defmt::info;
+use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::{Point, Size};
 use embedded_graphics::primitives::Rectangle;
 use heapless::FnvIndexMap;
@@ -83,7 +86,11 @@ impl<'a> Level<'a, Level1> {
 }
 
 #[async_trait]
-impl<'a, D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for Level<'a, Level1> {
+impl<'a, D, F> State<D, F> for Level<'a, Level1>
+where
+    D: GameDisplay + Display<u8, Color = Rgb565> + Send,
+    F: Flash + Send + Sync,
+{
     async fn on_control(
         &mut self,
         _event: Controls,
@@ -99,31 +106,31 @@ impl<'a, D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for Level<'a
         let floor = flash
             .load_tga::<{ FLOOR_SIZE / 4 + 1 }, { FLOOR_SIZE }>(TilesOffset::Floor.into())
             .await;
-        let floor = D::tga_to_data(floor.as_slice());
+        let floor = D::render_bin_tga(floor.as_slice(), colors::WALL_FG, colors::WALL_BG);
 
         const W1_SIZE: usize = TilesSize::Wall1 as usize;
         let wall1 = flash
             .load_tga::<{ W1_SIZE / 4 + 1 }, { W1_SIZE }>(TilesOffset::Wall1.into())
             .await;
-        let wall1 = D::tga_to_data(wall1.as_slice());
+        let wall1 = D::render_bin_tga(wall1.as_slice(), colors::WALL_FG, colors::WALL_BG);
 
         const W2_SIZE: usize = TilesSize::Wall2 as usize;
         let wall2 = flash
             .load_tga::<{ W2_SIZE / 4 + 1 }, { W2_SIZE }>(TilesOffset::Wall2.into())
             .await;
-        let wall2 = D::tga_to_data(wall2.as_slice());
+        let wall2 = D::render_bin_tga(wall2.as_slice(), colors::WALL_FG, colors::WALL_BG);
 
         const W3_SIZE: usize = TilesSize::Wall3 as usize;
         let wall3 = flash
             .load_tga::<{ W3_SIZE / 4 + 1 }, { W3_SIZE }>(TilesOffset::Wall3.into())
             .await;
-        let wall3 = D::tga_to_data(wall3.as_slice());
+        let wall3 = D::render_bin_tga(wall3.as_slice(), colors::WALL_FG, colors::WALL_BG);
 
         const W4_SIZE: usize = TilesSize::Wall4 as usize;
         let wall4 = flash
             .load_tga::<{ W4_SIZE / 4 + 1 }, { W4_SIZE }>(TilesOffset::Wall4.into())
             .await;
-        let wall4 = D::tga_to_data(wall4.as_slice());
+        let wall4 = D::render_bin_tga(wall4.as_slice(), colors::WALL_FG, colors::WALL_BG);
 
         for x in 0..self.level.len() {
             for y in 0..self.level[0].len() {

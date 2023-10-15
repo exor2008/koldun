@@ -8,7 +8,7 @@ use embassy_futures::block_on;
 use embedded_graphics::draw_target::DrawTarget;
 use embedded_graphics::mono_font::ascii::FONT_9X15_BOLD;
 use embedded_graphics::mono_font::MonoTextStyle;
-use embedded_graphics::pixelcolor::Rgb565;
+use embedded_graphics::pixelcolor::{BinaryColor, Rgb565};
 use embedded_graphics::prelude::*;
 use embedded_graphics::prelude::{Dimensions, Point, Size};
 use embedded_graphics::primitives::Rectangle;
@@ -76,6 +76,7 @@ pub trait Display<DataFormat> {
     async fn column_address_set(&mut self, start: u16, end: u16);
     async fn page_address_set(&mut self, start: u16, end: u16);
     fn tga_to_data(data: &[u8]) -> Vec<DataFormat, { 32 * 32 * 2 }>;
+    fn render_bin_tga(data: &[u8], fg: Self::Color, bg: Self::Color) -> Vec<u8, { 32 * 32 * 2 }>;
 }
 
 pub struct Ili9486<C: PioParallel<u8>>
@@ -96,6 +97,13 @@ where
     fn color_to_data(color: Rgb565) -> [u8; 2] {
         let b = color.to_ne_bytes();
         [b[1], b[0]]
+    }
+
+    fn binary_to_data(color: BinaryColor, fg: Rgb565, bg: Rgb565) -> [u8; 2] {
+        match color.is_on() {
+            true => Self::color_to_data(fg),
+            false => Self::color_to_data(bg),
+        }
     }
 }
 
@@ -350,6 +358,17 @@ impl<C: PioParallel<u8> + Send> Display<u8> for Ili9486<C> {
         let pixels: Vec<_, { 32 * 32 * 2 }> = tga
             .pixels()
             .map(|p| Self::color_to_data(p.1))
+            .flatten()
+            .collect();
+
+        pixels
+    }
+
+    fn render_bin_tga(data: &[u8], fg: Self::Color, bg: Self::Color) -> Vec<u8, { 32 * 32 * 2 }> {
+        let tga: Tga<BinaryColor> = Tga::from_slice(data).unwrap();
+        let pixels: Vec<_, { 32 * 32 * 2 }> = tga
+            .pixels()
+            .map(|p| Self::binary_to_data(p.1, fg, bg))
             .flatten()
             .collect();
 

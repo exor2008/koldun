@@ -20,12 +20,14 @@ use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::text::DecorationColor;
 use embedded_graphics::{
     mono_font::{ascii::FONT_9X15_BOLD, iso_8859_5::FONT_9X18_BOLD, MonoTextStyle},
+    pixelcolor::BinaryColor,
     pixelcolor::Rgb565,
     prelude::*,
     text::Text,
 };
 use heapless::Vec;
 use koldun::control::{Buttons, Controls, States};
+use koldun::game::colors;
 use koldun::game::flash::FlashAccess;
 use koldun::game::state_mashine::StateMachine;
 use koldun::heap;
@@ -143,13 +145,18 @@ async fn main(spawner: Spawner) {
     )
     .unwrap();
 
-    let img = include_bytes!("test2.tga");
-    let tga: Tga<Rgb565> = Tga::from_slice(img).unwrap();
+    let img = include_bytes!("Wall_bw.tga");
+    let tga: Tga<BinaryColor> = Tga::from_slice(img).unwrap();
     // tga.header().image_origin = TopRight;
     // let tga2: Tga<Rgb565> = tga.into();
 
-    let pixels: Vec<_, { 32 * 32 * 2 }> =
-        tga.pixels().map(|p| color_to_data(p.1)).flatten().collect();
+    //1111
+    let pixels: Vec<_, { 32 * 32 * 2 }> = tga
+        .pixels()
+        .map(|p| render(p.1, colors::WALL_FG, colors::WALL_BG))
+        .flatten()
+        .collect();
+
     // pixels.reverse();
     display
         .draw_data(
@@ -158,7 +165,22 @@ async fn main(spawner: Spawner) {
         )
         .await;
 
-    Timer::after(Duration::from_millis(10)).await;
+    //////2222
+    let pixels: Vec<_, { 32 * 32 * 2 }> = tga
+        .pixels()
+        .map(|p| render_raw(p.1, [0b00011_000, 0b011_00000], [0, 0]))
+        .flatten()
+        .collect();
+
+    // pixels.reverse();
+    display
+        .draw_data(
+            Rectangle::new(Point::new((332) as i32, (200) as i32), Size::new(32, 32)),
+            pixels.as_slice(),
+        )
+        .await;
+
+    Timer::after(Duration::from_millis(50)).await;
 
     let flash = RPFlash::new(p.FLASH, p.DMA_CH1);
     let flash = FlashAccess::new(flash);
@@ -194,6 +216,20 @@ async fn main(spawner: Spawner) {
 
         // ticker.next().await;
         // Timer::after(Duration::from_millis(10)).await;
+    }
+}
+
+fn render(color: BinaryColor, fg: Rgb565, bg: Rgb565) -> [u8; 2] {
+    match color.is_on() {
+        true => color_to_data(fg),
+        false => color_to_data(bg),
+    }
+}
+
+fn render_raw(color: BinaryColor, fg: [u8; 2], bg: [u8; 2]) -> [u8; 2] {
+    match color.is_on() {
+        true => fg,
+        false => bg,
     }
 }
 
