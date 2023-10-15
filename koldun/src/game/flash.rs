@@ -36,11 +36,11 @@ impl<'a, T: Instance + Send> Flash for FlashAccess<'a, T> {
         &mut self,
         offset: usize,
     ) -> Vec<u8> {
-        assert!(SIZE_U32 * 4 == SIZE_U8);
+        assert!(SIZE_U32 == SIZE_U8 / 4 + 1);
         let data_u32 = &mut [0u32; SIZE_U32];
         self.load(offset, data_u32).await;
         let data_u8 = unsafe { transmute::<&[u32; SIZE_U32], &[u8; SIZE_U8]>(data_u32) };
-        let mut vec_u8: Vec<u8> = Vec::new();
+        let mut vec_u8: Vec<u8> = Vec::with_capacity(SIZE_U8);
         vec_u8.extend_from_slice(&data_u8[..]);
         vec_u8
     }

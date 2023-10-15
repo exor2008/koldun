@@ -73,7 +73,7 @@ impl<'a> Level<'a, Level1> {
         ];
 
         let tiles: FnvIndexMap<Tiles, &'a [u8], 32> = FnvIndexMap::new();
-        // info!("Heap used <new> {}", heap::used());
+        //
         Level {
             level,
             tiles,
@@ -94,38 +94,36 @@ impl<'a, D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for Level<'a
     }
     async fn on_init(&mut self, display: &mut D, flash: &mut F) {
         info!("Level1 Init");
-        // info!("Heap used <on_init> begin {}", heap::used());
+
         const FLOOR_SIZE: usize = TilesSize::Floor as usize;
         let floor = flash
-            .load_tga::<FLOOR_SIZE, { FLOOR_SIZE * 4 }>(TilesOffset::Floor.into())
+            .load_tga::<{ FLOOR_SIZE / 4 + 1 }, { FLOOR_SIZE }>(TilesOffset::Floor.into())
             .await;
         let floor = D::tga_to_data(floor.as_slice());
 
         const W1_SIZE: usize = TilesSize::Wall1 as usize;
         let wall1 = flash
-            .load_tga::<W1_SIZE, { W1_SIZE * 4 }>(TilesOffset::Wall1.into())
+            .load_tga::<{ W1_SIZE / 4 + 1 }, { W1_SIZE }>(TilesOffset::Wall1.into())
             .await;
         let wall1 = D::tga_to_data(wall1.as_slice());
 
         const W2_SIZE: usize = TilesSize::Wall2 as usize;
         let wall2 = flash
-            .load_tga::<W2_SIZE, { W2_SIZE * 4 }>(TilesOffset::Wall2.into())
+            .load_tga::<{ W2_SIZE / 4 + 1 }, { W2_SIZE }>(TilesOffset::Wall2.into())
             .await;
         let wall2 = D::tga_to_data(wall2.as_slice());
 
         const W3_SIZE: usize = TilesSize::Wall3 as usize;
         let wall3 = flash
-            .load_tga::<W3_SIZE, { W3_SIZE * 4 }>(TilesOffset::Wall3.into())
+            .load_tga::<{ W3_SIZE / 4 + 1 }, { W3_SIZE }>(TilesOffset::Wall3.into())
             .await;
         let wall3 = D::tga_to_data(wall3.as_slice());
 
         const W4_SIZE: usize = TilesSize::Wall4 as usize;
         let wall4 = flash
-            .load_tga::<W4_SIZE, { W4_SIZE * 4 }>(TilesOffset::Wall4.into())
+            .load_tga::<{ W4_SIZE / 4 + 1 }, { W4_SIZE }>(TilesOffset::Wall4.into())
             .await;
         let wall4 = D::tga_to_data(wall4.as_slice());
-
-        // info!("Heap used <on_init> mid {}", heap::used());
 
         for x in 0..self.level.len() {
             for y in 0..self.level[0].len() {
@@ -189,7 +187,6 @@ impl<'a, D: GameDisplay + Send, F: Flash + Send + Sync> State<D, F> for Level<'a
                 }
             }
         }
-        // info!("Heap used <on_init> end {}", heap::used());
     }
 }
 
