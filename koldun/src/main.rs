@@ -20,20 +20,20 @@ use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::text::DecorationColor;
 use embedded_graphics::{
     mono_font::{ascii::FONT_9X15_BOLD, iso_8859_5::FONT_9X18_BOLD, MonoTextStyle},
-    pixelcolor::BinaryColor,
+    // pixelcolor::BinaryColor,
     pixelcolor::Rgb565,
     prelude::*,
     text::Text,
 };
-use heapless::Vec;
+// use heapless::Vec;
 use koldun::control::{Buttons, Controls, States};
-use koldun::game::colors;
+// use koldun::game::colors;
 use koldun::game::flash::FlashAccess;
 use koldun::game::state_mashine::StateMachine;
 use koldun::heap;
 use koldun::ili9486::{pio_parallel::PioParallel8, Display, Ili9486, Order, PixelFormat};
 use panic_probe as _;
-use tinytga::Tga;
+// use tinytga::Tga;
 use u8g2_fonts::fonts::u8g2_font_unifont_t_animals;
 use u8g2_fonts::types::FontColor;
 use u8g2_fonts::types::{HorizontalAlignment, VerticalPosition};
@@ -184,24 +184,24 @@ async fn main(spawner: Spawner) {
     }
 }
 
-fn render(color: BinaryColor, fg: Rgb565, bg: Rgb565) -> [u8; 2] {
-    match color.is_on() {
-        true => color_to_data(fg),
-        false => color_to_data(bg),
-    }
-}
+// fn render(color: BinaryColor, fg: Rgb565, bg: Rgb565) -> [u8; 2] {
+//     match color.is_on() {
+//         true => color_to_data(fg),
+//         false => color_to_data(bg),
+//     }
+// }
 
-fn render_raw(color: BinaryColor, fg: [u8; 2], bg: [u8; 2]) -> [u8; 2] {
-    match color.is_on() {
-        true => fg,
-        false => bg,
-    }
-}
+// fn render_raw(color: BinaryColor, fg: [u8; 2], bg: [u8; 2]) -> [u8; 2] {
+//     match color.is_on() {
+//         true => fg,
+//         false => bg,
+//     }
+// }
 
-fn color_to_data(color: Rgb565) -> [u8; 2] {
-    let b = color.to_ne_bytes();
-    [b[1], b[0]]
-}
+// fn color_to_data(color: Rgb565) -> [u8; 2] {
+//     let b = color.to_ne_bytes();
+//     [b[1], b[0]]
+// }
 
 #[embassy_executor::task]
 async fn button_up_task(_spawner: Spawner, mut up: Input<'static, PIN_13>) {

@@ -2,7 +2,7 @@ use crate::control::Controls;
 use crate::game::colors;
 use crate::game::flash::Flash;
 use crate::game::state_mashine::State;
-use crate::heap;
+use crate::game::tiles::*;
 use crate::ili9486::Display;
 use crate::ili9486::GameDisplay;
 use alloc::boxed::Box;
@@ -10,52 +10,40 @@ use async_trait::async_trait;
 use core::marker::PhantomData;
 use defmt::info;
 use embedded_graphics::pixelcolor::Rgb565;
-use embedded_graphics::prelude::{Point, Size};
-use embedded_graphics::primitives::Rectangle;
+use embedded_graphics::prelude::Point;
 use heapless::FnvIndexMap;
+use heapless::Vec;
+use koldun_macro_derive::load_tga;
 extern crate alloc;
-
-#[derive(Clone, Copy)]
-pub enum TilesSize {
-    Grass = 0x029b,
-    Bush1 = 0x03bb,
-    Bush2 = 0x03bc,
-    Floor = 0x02ab,
-    Wall1 = 0x0733,
-    Wall2 = 0x07bb,
-    Wall3 = 0x0813,
-    Wall4 = 0x065b,
-}
-
-#[derive(Clone, Copy)]
-pub enum TilesOffset {
-    Grass = 0x0000,
-    Bush1 = 0x1000,
-    Bush2 = 0x2000,
-    Floor = 0x3000,
-    Wall1 = 0x4000,
-    Wall2 = 0x5000,
-    Wall3 = 0x6000,
-    Wall4 = 0x7000,
-}
-
-#[derive(Clone, Copy)]
-pub enum Tiles {
-    Grass,
-    Bush1,
-    Bush2,
-}
 
 pub struct Level1;
 pub struct Level2;
 
-pub struct Level<'a, L> {
-    level: [[u16; 15]; 10],
-    tiles: FnvIndexMap<Tiles, &'a [u8], 32>,
+pub struct Level<L> {
+    level: [[u8; 15]; 10],
+    tiles: FnvIndexMap<u8, Vec<u8, { 32 * 32 * 2 }>, 32>,
     idx: PhantomData<L>,
 }
 
-impl<'a> Level<'a, Level1> {
+impl<L> Level<L> {
+    pub async fn redraw_all<D>(&mut self, display: &mut D)
+    where
+        D: GameDisplay + Display<u8, Color = Rgb565> + Send,
+    {
+        for x in 0..self.level.len() {
+            for y in 0..self.level[0].len() {
+                display
+                    .draw_tile(
+                        Point::new((y * 32) as i32, (x * 32) as i32),
+                        self.tiles.get(&self.level[x][y]).unwrap(),
+                    )
+                    .await;
+            }
+        }
+    }
+}
+
+impl Level<Level1> {
     pub fn new() -> Self {
         let level = [
             [4, 2, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -70,8 +58,8 @@ impl<'a> Level<'a, Level1> {
             [4, 3, 3, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ];
 
-        let tiles: FnvIndexMap<Tiles, &'a [u8], 32> = FnvIndexMap::new();
-        //
+        let tiles: FnvIndexMap<u8, Vec<u8, { 32 * 32 * 2 }>, 32> = FnvIndexMap::new();
+
         Level {
             level,
             tiles,
@@ -81,7 +69,7 @@ impl<'a> Level<'a, Level1> {
 }
 
 #[async_trait]
-impl<'a, D, F> State<D, F> for Level<'a, Level1>
+impl<D, F> State<D, F> for Level<Level1>
 where
     D: GameDisplay + Display<u8, Color = Rgb565> + Send,
     F: Flash + Send + Sync,
@@ -97,100 +85,13 @@ where
     async fn on_init(&mut self, display: &mut D, flash: &mut F) {
         info!("Level1 Init");
 
-        const FLOOR_SIZE: usize = TilesSize::Floor as usize;
-        let floor = flash
-            .load_tga::<{ FLOOR_SIZE / 4 + 1 }, { FLOOR_SIZE }>(TilesOffset::Floor.into())
-            .await;
-        let floor = D::render_bin_tga(floor.as_slice(), colors::WALL_FG, colors::WALL_BG);
+        let tiles = &mut self.tiles;
+        load_tga!(tiles, Floor, WALL_FG, WALL_BG);
+        load_tga!(tiles, Wall1, WALL_FG, WALL_BG);
+        load_tga!(tiles, Wall2, WALL_FG, WALL_BG);
+        load_tga!(tiles, Wall3, WALL_FG, WALL_BG);
+        load_tga!(tiles, Wall4, WALL_FG, WALL_BG);
 
-        const W1_SIZE: usize = TilesSize::Wall1 as usize;
-        let wall1 = flash
-            .load_tga::<{ W1_SIZE / 4 + 1 }, { W1_SIZE }>(TilesOffset::Wall1.into())
-            .await;
-        let wall1 = D::render_bin_tga(wall1.as_slice(), colors::WALL_FG, colors::WALL_BG);
-
-        const W2_SIZE: usize = TilesSize::Wall2 as usize;
-        let wall2 = flash
-            .load_tga::<{ W2_SIZE / 4 + 1 }, { W2_SIZE }>(TilesOffset::Wall2.into())
-            .await;
-        let wall2 = D::render_bin_tga(wall2.as_slice(), colors::WALL_FG, colors::WALL_BG);
-
-        const W3_SIZE: usize = TilesSize::Wall3 as usize;
-        let wall3 = flash
-            .load_tga::<{ W3_SIZE / 4 + 1 }, { W3_SIZE }>(TilesOffset::Wall3.into())
-            .await;
-        let wall3 = D::render_bin_tga(wall3.as_slice(), colors::WALL_FG, colors::WALL_BG);
-
-        const W4_SIZE: usize = TilesSize::Wall4 as usize;
-        let wall4 = flash
-            .load_tga::<{ W4_SIZE / 4 + 1 }, { W4_SIZE }>(TilesOffset::Wall4.into())
-            .await;
-        let wall4 = D::render_bin_tga(wall4.as_slice(), colors::WALL_FG, colors::WALL_BG);
-
-        for x in 0..self.level.len() {
-            for y in 0..self.level[0].len() {
-                match self.level[x][y] {
-                    1 => {
-                        display
-                            .draw_tile(
-                                Point::new((y * 32) as i32, (x * 32) as i32),
-                                wall1.as_slice(),
-                            )
-                            .await;
-                    }
-                    2 => {
-                        display
-                            .draw_data(
-                                Rectangle::new(
-                                    Point::new((y * 32) as i32, (x * 32) as i32),
-                                    Size::new(32, 32),
-                                ),
-                                wall2.as_slice(),
-                            )
-                            .await;
-                    }
-                    3 => {
-                        display
-                            .draw_data(
-                                Rectangle::new(
-                                    Point::new((y * 32) as i32, (x * 32) as i32),
-                                    Size::new(32, 32),
-                                ),
-                                wall3.as_slice(),
-                            )
-                            .await;
-                    }
-                    4 => {
-                        display
-                            .draw_data(
-                                Rectangle::new(
-                                    Point::new((y * 32) as i32, (x * 32) as i32),
-                                    Size::new(32, 32),
-                                ),
-                                wall4.as_slice(),
-                            )
-                            .await;
-                    }
-
-                    _ => {
-                        display
-                            .draw_data(
-                                Rectangle::new(
-                                    Point::new((y * 32) as i32, (x * 32) as i32),
-                                    Size::new(32, 32),
-                                ),
-                                floor.as_slice(),
-                            )
-                            .await;
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl From<TilesOffset> for usize {
-    fn from(value: TilesOffset) -> Self {
-        value as Self
+        self.redraw_all(display).await;
     }
 }
