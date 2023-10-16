@@ -145,41 +145,6 @@ async fn main(spawner: Spawner) {
     )
     .unwrap();
 
-    let img = include_bytes!("Wall_bw.tga");
-    let tga: Tga<BinaryColor> = Tga::from_slice(img).unwrap();
-    // tga.header().image_origin = TopRight;
-    // let tga2: Tga<Rgb565> = tga.into();
-
-    //1111
-    let pixels: Vec<_, { 32 * 32 * 2 }> = tga
-        .pixels()
-        .map(|p| render(p.1, colors::WALL_FG, colors::WALL_BG))
-        .flatten()
-        .collect();
-
-    // pixels.reverse();
-    display
-        .draw_data(
-            Rectangle::new(Point::new((300) as i32, (200) as i32), Size::new(32, 32)),
-            pixels.as_slice(),
-        )
-        .await;
-
-    //////2222
-    let pixels: Vec<_, { 32 * 32 * 2 }> = tga
-        .pixels()
-        .map(|p| render_raw(p.1, [0b00011_000, 0b011_00000], [0, 0]))
-        .flatten()
-        .collect();
-
-    // pixels.reverse();
-    display
-        .draw_data(
-            Rectangle::new(Point::new((332) as i32, (200) as i32), Size::new(32, 32)),
-            pixels.as_slice(),
-        )
-        .await;
-
     Timer::after(Duration::from_millis(50)).await;
 
     let flash = RPFlash::new(p.FLASH, p.DMA_CH1);

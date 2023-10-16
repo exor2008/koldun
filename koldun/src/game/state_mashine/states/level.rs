@@ -50,7 +50,7 @@ pub struct Level1;
 pub struct Level2;
 
 pub struct Level<'a, L> {
-    level: [[u16; 10]; 15],
+    level: [[u16; 15]; 10],
     tiles: FnvIndexMap<Tiles, &'a [u8], 32>,
     idx: PhantomData<L>,
 }
@@ -58,21 +58,16 @@ pub struct Level<'a, L> {
 impl<'a> Level<'a, Level1> {
     pub fn new() -> Self {
         let level = [
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 4, 2, 3, 2, 3, 4, 0, 0],
-            [0, 0, 3, 0, 0, 0, 0, 1, 0, 0],
-            [0, 0, 1, 0, 0, 0, 0, 2, 0, 0],
-            [0, 0, 2, 0, 0, 0, 0, 3, 0, 0],
-            [0, 0, 4, 2, 1, 0, 3, 4, 0, 0],
-            [0, 0, 3, 0, 0, 0, 0, 1, 0, 0],
-            [0, 0, 1, 0, 0, 0, 0, 2, 0, 0],
-            [0, 0, 2, 0, 1, 2, 3, 4, 0, 0],
-            [0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 1, 0, 3, 0, 0, 0, 0, 0],
-            [0, 0, 4, 2, 2, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [4, 2, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [2, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0],
+            [2, 0, 0, 0, 2, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0],
+            [3, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [3, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+            [2, 0, 0, 0, 3, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0],
+            [3, 0, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0],
+            [3, 0, 0, 0, 1, 3, 2, 4, 0, 0, 0, 0, 0, 0, 0],
+            [4, 3, 3, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ];
 
         let tiles: FnvIndexMap<Tiles, &'a [u8], 32> = FnvIndexMap::new();
@@ -137,11 +132,8 @@ where
                 match self.level[x][y] {
                     1 => {
                         display
-                            .draw_data(
-                                Rectangle::new(
-                                    Point::new((x * 32) as i32, (y * 32) as i32),
-                                    Size::new(32, 32),
-                                ),
+                            .draw_tile(
+                                Point::new((y * 32) as i32, (x * 32) as i32),
                                 wall1.as_slice(),
                             )
                             .await;
@@ -150,7 +142,7 @@ where
                         display
                             .draw_data(
                                 Rectangle::new(
-                                    Point::new((x * 32) as i32, (y * 32) as i32),
+                                    Point::new((y * 32) as i32, (x * 32) as i32),
                                     Size::new(32, 32),
                                 ),
                                 wall2.as_slice(),
@@ -161,7 +153,7 @@ where
                         display
                             .draw_data(
                                 Rectangle::new(
-                                    Point::new((x * 32) as i32, (y * 32) as i32),
+                                    Point::new((y * 32) as i32, (x * 32) as i32),
                                     Size::new(32, 32),
                                 ),
                                 wall3.as_slice(),
@@ -172,7 +164,7 @@ where
                         display
                             .draw_data(
                                 Rectangle::new(
-                                    Point::new((x * 32) as i32, (y * 32) as i32),
+                                    Point::new((y * 32) as i32, (x * 32) as i32),
                                     Size::new(32, 32),
                                 ),
                                 wall4.as_slice(),
@@ -184,7 +176,7 @@ where
                         display
                             .draw_data(
                                 Rectangle::new(
-                                    Point::new((x * 32) as i32, (y * 32) as i32),
+                                    Point::new((y * 32) as i32, (x * 32) as i32),
                                     Size::new(32, 32),
                                 ),
                                 floor.as_slice(),
