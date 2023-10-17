@@ -1,29 +1,46 @@
-/// ID
-pub const FLOOR: u8 = 0;
-pub const WALL1: u8 = 1;
-pub const WALL2: u8 = 2;
-pub const WALL3: u8 = 3;
-pub const WALL4: u8 = 4;
-pub const GRASS: u8 = 5;
-pub const BUSH1: u8 = 6;
-pub const BUSH2: u8 = 7;
+use embedded_graphics::pixelcolor::raw::ToBytes;
+use embedded_graphics::pixelcolor::Rgb565;
+use koldun_macro_derive::render_tiles;
 
-/// OFFSETS
-pub const OFFSET_FLOOR: usize = 0x3000;
-pub const OFFSET_WALL1: usize = 0x4000;
-pub const OFFSET_WALL2: usize = 0x5000;
-pub const OFFSET_WALL3: usize = 0x6000;
-pub const OFFSET_WALL4: usize = 0x7000;
-pub const OFFSET_GRASS: usize = 0x0000;
-pub const OFFSET_BUSH1: usize = 0x1000;
-pub const OFFSET_BUSH2: usize = 0x2000;
+pub const FLOOR: (usize, usize) = (0, 0);
+pub const WALL1: (usize, usize) = (0, 1);
+pub const WALL2: (usize, usize) = (0, 2);
+pub const WALL3: (usize, usize) = (0, 3);
+pub const WALL4: (usize, usize) = (0, 4);
 
-/// SIZES
-pub const SIZE_FLOOR: usize = 683;
-pub const SIZE_WALL1: usize = 1843;
-pub const SIZE_WALL2: usize = 1979;
-pub const SIZE_WALL3: usize = 2067;
-pub const SIZE_WALL4: usize = 1627;
-pub const SIZE_GRASS: usize = 667;
-pub const SIZE_BUSH1: usize = 955;
-pub const SIZE_BUSH2: usize = 955;
+pub const TILEMAPS: [&[u8; 4096]; 1] = [include_bytes!(
+    "..\\..\\resources\\tiles\\compressed\\tiles0.bin"
+)];
+
+#[render_tiles(FLOOR, WALL1, WALL2, WALL3, WALL4)]
+pub struct Tile {}
+
+impl Tile {
+    fn render(data: &[u8; 128], fg: Rgb565, bg: Rgb565) -> [u8; 32 * 32 * 2] {
+        let mut colors = [0; 32 * 32 * 2];
+        for (i, byte) in data.iter().enumerate() {
+            for j in (0..8).rev() {
+                let bit = (byte >> j) & 1;
+
+                let c: [u8; 2];
+                match bit == 0 {
+                    true => {
+                        c = Tile::color_to_data(bg);
+                    }
+                    false => {
+                        c = Tile::color_to_data(fg);
+                    }
+                }
+                let start = (i * 16) + j * 2;
+                let end = start + 2;
+                colors[start..end].copy_from_slice(&c);
+            }
+        }
+        colors
+    }
+
+    fn color_to_data(color: Rgb565) -> [u8; 2] {
+        let b = color.to_ne_bytes();
+        [b[1], b[0]]
+    }
+}

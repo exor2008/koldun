@@ -1,5 +1,5 @@
 use crate::control::Controls;
-use crate::game::colors;
+use crate::game::colors::*;
 use crate::game::flash::Flash;
 use crate::game::state_mashine::State;
 use crate::game::tiles::*;
@@ -12,8 +12,6 @@ use defmt::info;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::Point;
 use heapless::FnvIndexMap;
-use heapless::Vec;
-use koldun_macro_derive::load_tga;
 extern crate alloc;
 
 pub struct Level1;
@@ -21,7 +19,7 @@ pub struct Level2;
 
 pub struct Level<L> {
     level: [[u8; 15]; 10],
-    tiles: FnvIndexMap<u8, Vec<u8, { 32 * 32 * 2 }>, 32>,
+    tiles: FnvIndexMap<usize, [u8; 32 * 32 * 2], 32>,
     idx: PhantomData<L>,
 }
 
@@ -32,10 +30,11 @@ impl<L> Level<L> {
     {
         for x in 0..self.level.len() {
             for y in 0..self.level[0].len() {
+                let idx = self.level[x][y] as usize;
                 display
                     .draw_tile(
                         Point::new((y * 32) as i32, (x * 32) as i32),
-                        self.tiles.get(&self.level[x][y]).unwrap(),
+                        self.tiles.get(&idx).unwrap(),
                     )
                     .await;
             }
@@ -58,8 +57,7 @@ impl Level<Level1> {
             [4, 3, 3, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ];
 
-        let tiles: FnvIndexMap<u8, Vec<u8, { 32 * 32 * 2 }>, 32> = FnvIndexMap::new();
-
+        let tiles: FnvIndexMap<usize, [u8; 32 * 32 * 2], 32> = FnvIndexMap::new();
         Level {
             level,
             tiles,
@@ -82,15 +80,24 @@ where
         info!("Level working");
         None
     }
-    async fn on_init(&mut self, display: &mut D, flash: &mut F) {
+    async fn on_init(&mut self, display: &mut D, _flash: &mut F) {
         info!("Level1 Init");
 
-        let tiles = &mut self.tiles;
-        load_tga!(tiles, Floor, WALL_FG, WALL_BG);
-        load_tga!(tiles, Wall1, WALL_FG, WALL_BG);
-        load_tga!(tiles, Wall2, WALL_FG, WALL_BG);
-        load_tga!(tiles, Wall3, WALL_FG, WALL_BG);
-        load_tga!(tiles, Wall4, WALL_FG, WALL_BG);
+        self.tiles
+            .insert(Tile::floor_id(), Tile::floor(WALL_FG, WALL_BG))
+            .unwrap();
+        self.tiles
+            .insert(Tile::wall1_id(), Tile::wall1(WALL_FG, WALL_BG))
+            .unwrap();
+        self.tiles
+            .insert(Tile::wall2_id(), Tile::wall2(WALL_FG, WALL_BG))
+            .unwrap();
+        self.tiles
+            .insert(Tile::wall3_id(), Tile::wall3(WALL_FG, WALL_BG))
+            .unwrap();
+        self.tiles
+            .insert(Tile::wall4_id(), Tile::wall4(WALL_FG, WALL_BG))
+            .unwrap();
 
         self.redraw_all(display).await;
     }

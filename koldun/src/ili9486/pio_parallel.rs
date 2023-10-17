@@ -1,7 +1,6 @@
 use crate::ili9486::Command;
 use alloc::boxed::Box;
 use async_trait::async_trait;
-use defmt::info;
 use embassy_rp::dma::{AnyChannel, Channel};
 use embassy_rp::gpio::Level;
 use embassy_rp::pio::{

@@ -1,30 +1,58 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
+use syn::parse::{Parse, ParseStream, Result};
+use syn::punctuated::Punctuated;
+use syn::{parse_macro_input, Ident, ItemStruct, Token};
 use to_snake_case::ToSnakeCase;
 
-#[proc_macro]
-pub fn load_tga(input: TokenStream) -> TokenStream {
-    // let ast: DeriveInput = parse(input).unwrap();
-    let input = input.to_string();
-    let input: Vec<_> = input.split(",").map(|s| s.trim()).collect();
-    let hashmap = input[0];
-    let tile = input[1];
-    let color1 = format_ident!("{}", input[2]);
-    let color2 = format_ident!("{}", input[3]);
-    let tile_upper = format_ident!("{}", tile.to_uppercase());
-    let tile_snake = format_ident!("{}", tile.to_snake_case());
-    let size = format_ident!("SIZE_{}", tile.to_uppercase());
-    let offset = format_ident!("OFFSET_{}", tile.to_uppercase());
-    let hasmap = format_ident!("{}", hashmap);
+struct Args {
+    variants: Vec<Ident>,
+}
+
+impl Parse for Args {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let variants = Punctuated::<Ident, Token![,]>::parse_terminated(input)?;
+        Ok(Args {
+            variants: variants.into_iter().collect(),
+        })
+    }
+}
+
+#[proc_macro_attribute]
+pub fn render_tiles(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(item as ItemStruct);
+    let args = parse_macro_input!(attr as Args);
+    let name = &item.ident;
+
+    let mut parse_methods = quote! {};
+
+    for variant in &args.variants {
+        let fn_name = format_ident!("{}", variant.to_string().to_snake_case());
+        let fn_id = format_ident!("{}_id", variant.to_string().to_snake_case());
+
+        let parse_method = quote! {
+            pub fn #fn_name(fg: Rgb565, bg: Rgb565) -> [u8; 32 * 32 * 2] {
+                let start = #variant.1 * 128;
+                let finish = start + 128;
+                let mut bits = [0u8; 128];
+                bits.copy_from_slice(&TILEMAPS[#variant.0][start..finish]);
+                #name::render(&bits, fg, bg)
+            }
+
+            pub fn #fn_id() -> usize{
+                #variant.0 * 32 + #variant.1
+            }
+        };
+        parse_methods.extend(parse_method);
+    }
 
     let gen = quote! {
-        {
-            let #tile_snake = flash
-                .load_tga::<{ #size / 4 + 1 }, { #size }>(#offset)
-                .await;
-            let #tile_snake = D::render_bin_tga(#tile_snake.as_slice(), colors::#color1, colors::#color2);
-            #hasmap.insert(#tile_upper, #tile_snake).unwrap();
+        #item
+
+        impl #name{
+            #parse_methods
         }
     };
+
     gen.into()
 }

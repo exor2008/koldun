@@ -3,3 +3,5 @@
 *.pdn
 *.tga
 *.jpg
+*.pyc
+!resources/tiles/tga/*.tga

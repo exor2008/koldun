@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "tga-compressor"
+version = "0.1.0"
+description = ""
+authors = ["Ian <exor2008@yandex.ru>"]
+readme = "README.md"
+packages = [{ include = "tga_compressor" }]
+
+[tool.poetry.dependencies]
+python = "<3.13,>=3.9"
+pillow = "^10.1.0"
+numpy = "^1.26.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
