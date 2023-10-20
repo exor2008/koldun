@@ -26,7 +26,7 @@ use embedded_graphics::{
     text::Text,
 };
 // use heapless::Vec;
-use koldun::control::{Buttons, Controls, States};
+use koldun::events::{Buttons, Event, States};
 // use koldun::game::colors;
 use koldun::game::flash::FlashAccess;
 use koldun::game::state_mashine::StateMachine;
@@ -44,7 +44,7 @@ bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
 });
 
-static CONTROL_CHANNEL: Channel<ThreadModeRawMutex, Controls, 1> = Channel::new();
+static CONTROL_CHANNEL: Channel<ThreadModeRawMutex, Event, 1> = Channel::new();
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -62,6 +62,7 @@ async fn main(spawner: Spawner) {
     spawner.spawn(button_left_task(spawner, left)).unwrap();
     let right = Input::new(p.PIN_10, Pull::Down);
     spawner.spawn(button_right_task(spawner, right)).unwrap();
+    spawner.spawn(timer_task(spawner)).unwrap();
 
     // reset
     reset.set_low();
@@ -152,7 +153,7 @@ async fn main(spawner: Spawner) {
 
     info!("Heap used {}", heap::HEAP.used());
     let mut sm = StateMachine::new(display, flash);
-    sm.on_control(Controls::BUTTON(Buttons::DOWN(States::PRESSED)))
+    sm.on_control(Event::Button(Buttons::Down(States::Pressed)))
         .await;
     info!("Heap used {}", heap::HEAP.used());
 
@@ -160,8 +161,11 @@ async fn main(spawner: Spawner) {
     // let mut ticker = Ticker::every(Duration::from_hz(10));
     loop {
         let command = CONTROL_CHANNEL.receive().await;
+        if let Event::Tick(_) = command {
+        } else {
+            info!("Heap used {}", heap::HEAP.used());
+        }
         sm.on_control(command).await;
-        info!("Heap used {}", heap::HEAP.used());
         // c += 1;
         // c = if c >= 318 { 0 } else { c };
 
@@ -208,8 +212,8 @@ async fn button_up_task(_spawner: Spawner, mut up: Input<'static, PIN_13>) {
     loop {
         up.wait_for_any_edge().await;
         let message = match up.is_high() {
-            true => Controls::BUTTON(Buttons::UP(States::PRESSED)),
-            false => Controls::BUTTON(Buttons::UP(States::RELEASED)),
+            true => Event::Button(Buttons::Up(States::Pressed)),
+            false => Event::Button(Buttons::Up(States::Released)),
         };
         CONTROL_CHANNEL.send(message).await
     }
@@ -220,8 +224,8 @@ async fn button_down_task(_spawner: Spawner, mut down: Input<'static, PIN_12>) {
     loop {
         down.wait_for_any_edge().await;
         let message = match down.is_high() {
-            true => Controls::BUTTON(Buttons::DOWN(States::PRESSED)),
-            false => Controls::BUTTON(Buttons::DOWN(States::RELEASED)),
+            true => Event::Button(Buttons::Down(States::Pressed)),
+            false => Event::Button(Buttons::Down(States::Released)),
         };
         CONTROL_CHANNEL.send(message).await
     }
@@ -232,8 +236,8 @@ async fn button_left_task(_spawner: Spawner, mut left: Input<'static, PIN_11>) {
     loop {
         left.wait_for_any_edge().await;
         let message = match left.is_high() {
-            true => Controls::BUTTON(Buttons::LEFT(States::PRESSED)),
-            false => Controls::BUTTON(Buttons::LEFT(States::RELEASED)),
+            true => Event::Button(Buttons::Left(States::Pressed)),
+            false => Event::Button(Buttons::Left(States::Released)),
         };
         CONTROL_CHANNEL.send(message).await
     }
@@ -244,9 +248,20 @@ async fn button_right_task(_spawner: Spawner, mut right: Input<'static, PIN_10>)
     loop {
         right.wait_for_any_edge().await;
         let message = match right.is_high() {
-            true => Controls::BUTTON(Buttons::RIGHT(States::PRESSED)),
-            false => Controls::BUTTON(Buttons::RIGHT(States::RELEASED)),
+            true => Event::Button(Buttons::Right(States::Pressed)),
+            false => Event::Button(Buttons::Right(States::Released)),
         };
         CONTROL_CHANNEL.send(message).await
+    }
+}
+
+#[embassy_executor::task]
+async fn timer_task(_spawner: Spawner) {
+    let mut ticker = Ticker::every(Duration::from_hz(10));
+    let mut tick: u128 = Default::default();
+    loop {
+        ticker.next().await;
+        CONTROL_CHANNEL.send(Event::Tick(tick)).await;
+        tick = tick.wrapping_add(1);
     }
 }

@@ -1,8 +1,14 @@
-use crate::control::Controls;
+use crate::events::Event;
+use crate::game::cell::Grid;
 use crate::game::colors::*;
 use crate::game::flash::Flash;
+use crate::game::items::wizard::Wizard;
+use crate::game::items::Item;
 use crate::game::state_mashine::State;
 use crate::game::tiles::*;
+use crate::game::Drawable;
+use crate::game::Tick;
+use crate::game::{MAX_X, MAX_Y};
 use crate::ili9486::Display;
 use crate::ili9486::GameDisplay;
 use alloc::boxed::Box;
@@ -18,7 +24,7 @@ pub struct Level1;
 pub struct Level2;
 
 pub struct Level<L> {
-    level: [[u8; 15]; 10],
+    grid: Grid,
     tiles: FnvIndexMap<usize, [u8; 32 * 32 * 2], 32>,
     idx: PhantomData<L>,
 }
@@ -28,15 +34,31 @@ impl<L> Level<L> {
     where
         D: GameDisplay + Display<u8, Color = Rgb565> + Send,
     {
-        for x in 0..self.level.len() {
-            for y in 0..self.level[0].len() {
-                let idx = self.level[x][y] as usize;
+        for x in 0..MAX_X {
+            for y in 0..MAX_Y {
+                let img_id = self.grid[y][x].tile_id();
+                let data = self.tiles.get(&img_id).expect("Unknown img_id");
                 display
-                    .draw_tile(
-                        Point::new((y * 32) as i32, (x * 32) as i32),
-                        self.tiles.get(&idx).unwrap(),
-                    )
+                    .draw_tile(Point::new(32 * x as i32, 32 * y as i32), data)
                     .await;
+            }
+        }
+    }
+
+    pub async fn tick<D>(&mut self, time: u128, display: &mut D)
+    where
+        D: GameDisplay + Display<u8, Color = Rgb565> + Send,
+    {
+        for x in 0..MAX_X {
+            for y in 0..MAX_Y {
+                let redraw = self.grid[y][x].tick(time);
+                if redraw {
+                    let img_id = self.grid[y][x].tile_id();
+                    let data = self.tiles.get(&img_id).expect("Unknown img_id");
+                    display
+                        .draw_tile(Point::new(32 * x as i32, 32 * y as i32), data)
+                        .await;
+                }
             }
         }
     }
@@ -44,22 +66,30 @@ impl<L> Level<L> {
 
 impl Level<Level1> {
     pub fn new() -> Self {
-        let level = [
-            [4, 2, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [2, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0],
-            [2, 0, 0, 0, 2, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0],
-            [3, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            [3, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-            [2, 0, 0, 0, 3, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0],
-            [3, 0, 0, 0, 3, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0],
-            [3, 0, 0, 0, 1, 3, 2, 4, 0, 0, 0, 0, 0, 0, 0],
-            [4, 3, 3, 2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        let level: [[usize; MAX_X]; MAX_Y] = [
+            [4, 2, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [2, 1, 1, 1, 1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1],
+            [2, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1],
+            [3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [2, 1, 1, 1, 3, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1],
+            [3, 1, 1, 1, 3, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1],
+            [3, 1, 1, 1, 1, 3, 2, 4, 1, 1, 1, 1, 1, 1, 1],
+            [4, 3, 3, 2, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
         ];
 
         let tiles: FnvIndexMap<usize, [u8; 32 * 32 * 2], 32> = FnvIndexMap::new();
+
+        ///////////
+        let char: Item<Wizard> = Item::new(Point::new(7, 7), 1, Tile::wizard1_id());
+        let mut grid: Grid = level.into();
+        let cell = &mut grid[5][10];
+        cell.set_item(Box::new(char));
+        ///////////
+
         Level {
-            level,
+            grid,
             tiles,
             idx: Default::default(),
         }
@@ -72,14 +102,14 @@ where
     D: GameDisplay + Display<u8, Color = Rgb565> + Send,
     F: Flash + Send + Sync,
 {
-    async fn on_control(
-        &mut self,
-        _event: Controls,
-        _display: &mut D,
-    ) -> Option<Box<dyn State<D, F>>> {
-        info!("Level working");
+    async fn on_event(&mut self, event: Event, display: &mut D) -> Option<Box<dyn State<D, F>>> {
+        match event {
+            Event::Tick(time) => self.tick(time, display).await,
+            _ => (),
+        }
         None
     }
+
     async fn on_init(&mut self, display: &mut D, _flash: &mut F) {
         info!("Level1 Init");
 
@@ -98,7 +128,13 @@ where
         self.tiles
             .insert(Tile::wall4_id(), Tile::wall4(WALL_FG, WALL_BG))
             .unwrap();
+        self.tiles
+            .insert(Tile::wizard1_id(), Tile::wizard1(WIZARD_FG, WALL_BG))
+            .unwrap();
+        self.tiles
+            .insert(Tile::wizard2_id(), Tile::wizard2(WIZARD_FG, WALL_BG))
+            .unwrap();
 
-        self.redraw_all(display).await;
+        self.redraw_all(display).await
     }
 }

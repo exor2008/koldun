@@ -1,4 +1,4 @@
-use crate::control::Controls;
+use crate::events::Event;
 use crate::game::flash::Flash;
 use crate::game::state_mashine::states::initial::Initial;
 use crate::game::state_mashine::states::State;
@@ -32,8 +32,8 @@ where
         }
     }
 
-    pub async fn on_control(&mut self, event: Controls) {
-        if let Some(mut state) = self.state.on_control(event, &mut self.display).await {
+    pub async fn on_control(&mut self, event: Event) {
+        if let Some(mut state) = self.state.on_event(event, &mut self.display).await {
             state.on_init(&mut self.display, &mut self.flash).await;
             self.state = state;
         }

@@ -1,4 +1,4 @@
-use crate::control::Controls;
+use crate::events::Event;
 use crate::game::flash::Flash;
 use crate::game::state_mashine::states::start_menu::StartMenu;
 use crate::game::state_mashine::State;
@@ -24,11 +24,7 @@ where
     D: GameDisplay + Send + Display<u8, Color = Rgb565>,
     F: Flash + Send + Sync,
 {
-    async fn on_control(
-        &mut self,
-        _event: Controls,
-        _display: &mut D,
-    ) -> Option<Box<dyn State<D, F>>> {
+    async fn on_event(&mut self, _event: Event, _display: &mut D) -> Option<Box<dyn State<D, F>>> {
         info!("Init State");
         Some(Box::new(StartMenu::new()))
     }

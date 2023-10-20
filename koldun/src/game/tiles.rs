@@ -2,17 +2,20 @@ use embedded_graphics::pixelcolor::raw::ToBytes;
 use embedded_graphics::pixelcolor::Rgb565;
 use koldun_macro_derive::render_tiles;
 
-pub const FLOOR: (usize, usize) = (0, 0);
-pub const WALL1: (usize, usize) = (0, 1);
-pub const WALL2: (usize, usize) = (0, 2);
-pub const WALL3: (usize, usize) = (0, 3);
-pub const WALL4: (usize, usize) = (0, 4);
+pub const EMPTY: (usize, usize) = (0, 0);
+pub const FLOOR: (usize, usize) = (0, 1);
+pub const WALL1: (usize, usize) = (0, 2);
+pub const WALL2: (usize, usize) = (0, 3);
+pub const WALL3: (usize, usize) = (0, 4);
+pub const WALL4: (usize, usize) = (0, 5);
+pub const WIZARD1: (usize, usize) = (0, 6);
+pub const WIZARD2: (usize, usize) = (0, 7);
 
 pub const TILEMAPS: [&[u8; 4096]; 1] = [include_bytes!(
     "..\\..\\resources\\tiles\\compressed\\tiles0.bin"
 )];
 
-#[render_tiles(FLOOR, WALL1, WALL2, WALL3, WALL4)]
+#[render_tiles(EMPTY, FLOOR, WALL1, WALL2, WALL3, WALL4, WIZARD1, WIZARD2)]
 pub struct Tile {}
 
 impl Tile {
