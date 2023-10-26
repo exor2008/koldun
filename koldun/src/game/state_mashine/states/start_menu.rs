@@ -1,5 +1,5 @@
-use crate::events::{Buttons, Event, States};
 use crate::game::colors;
+use crate::game::events::{Buttons, Event, States};
 use crate::game::flash::Flash;
 use crate::game::state_mashine::states::level::{Level, Level1};
 use crate::game::state_mashine::states::State;

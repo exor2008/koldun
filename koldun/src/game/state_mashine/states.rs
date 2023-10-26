@@ -1,5 +1,4 @@
-use crate::events::Event;
-use crate::game::flash::Flash;
+use crate::game::{events::Event, flash::Flash};
 use crate::ili9486::GameDisplay;
 use alloc::boxed::Box;
 use async_trait::async_trait;

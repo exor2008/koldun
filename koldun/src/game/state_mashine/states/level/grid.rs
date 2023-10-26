@@ -1,0 +1,261 @@
+use super::actions::{Action, Actions, MoveDestination, Target};
+use super::items::{sprite::StaticSprite, Drawable, Item, ItemTrait};
+use crate::game::events::Event;
+use crate::game::{MAX_X, MAX_Y};
+use alloc::boxed::Box;
+use core::error::Error;
+use core::fmt;
+use core::ops::{Index, IndexMut};
+use embedded_graphics::prelude::Point;
+use hashbrown::HashSet;
+use heapless::Vec;
+
+extern crate alloc;
+
+const LAYERS: usize = 3;
+pub const MAX_EVENTS: usize = 128;
+
+pub struct Cell {
+    coords: Point,
+    items: Vec<Option<Box<dyn ItemTrait>>, LAYERS>,
+}
+
+impl Cell {
+    fn new(coords: Point) -> Self {
+        let mut items: Vec<Option<Box<dyn ItemTrait>>, LAYERS> = Vec::new();
+        for _ in 0..LAYERS {
+            unsafe {
+                items.push_unchecked(None);
+            }
+        }
+        Cell { coords, items }
+    }
+
+    fn new_static_sprite(coords: Point, img_id: usize) -> Self {
+        let mut items: Vec<Option<Box<dyn ItemTrait>>, LAYERS> = Vec::new();
+        let sprite: Item<StaticSprite> = Item::new(coords, 0, img_id);
+        unsafe {
+            items.push_unchecked(Some(Box::new(sprite)));
+        }
+        for _ in 0..LAYERS - 1 {
+            unsafe {
+                items.push_unchecked(None);
+            }
+        }
+        Cell { coords, items }
+    }
+
+    pub fn set_item(&mut self, item: Box<dyn ItemTrait>) {
+        let z_level = item.z_level();
+        self.items[z_level] = Some(item);
+    }
+
+    pub fn take_item(&mut self, z_level: usize) -> Option<Box<dyn ItemTrait>> {
+        self.items[z_level].take()
+    }
+
+    fn get_items_len(&self) -> usize {
+        let items: Vec<&Option<Box<dyn ItemTrait>>, LAYERS> =
+            self.items.iter().filter(|item| item.is_some()).collect();
+        items.len()
+    }
+
+    fn on_event(&mut self, event: &Event) -> Vec<Action, MAX_EVENTS> {
+        self.items
+            .iter_mut()
+            .filter_map(|item| match item {
+                Some(item) => item.on_event(event),
+                None => None,
+            })
+            .collect()
+    }
+
+    pub fn on_reactions(&mut self, reaction: Action) {
+        if let Some(item) = self.items[reaction.target.z].as_deref_mut() {
+            item.on_reaction(&reaction)
+        }
+    }
+}
+
+impl Default for Cell {
+    fn default() -> Self {
+        Cell::new(Point::default())
+    }
+}
+
+impl Drawable for Cell {
+    fn tile_id(&self) -> usize {
+        if let Some(item) = self.items.iter().rev().find_map(|item| item.as_deref()) {
+            return item.tile_id();
+        }
+        unreachable!();
+    }
+}
+
+pub struct Grid([[Cell; MAX_X]; MAX_Y]);
+
+impl Grid {
+    pub fn on_event(&mut self, event: &Event) -> Vec<Action, MAX_EVENTS> {
+        let mut actions: Vec<Action, MAX_EVENTS> = Vec::new();
+
+        for x in 0..MAX_X {
+            for y in 0..MAX_Y {
+                let cell = self.get_cell_mut(x, y).unwrap();
+                let cell_actions = cell.on_event(event);
+                actions.extend(cell_actions);
+            }
+        }
+        actions
+    }
+
+    pub fn on_actions(
+        &mut self,
+        actions: Vec<Action, MAX_EVENTS>,
+    ) -> (Vec<Action, MAX_EVENTS>, HashSet<Target>) {
+        let mut reactions: Vec<Action, MAX_EVENTS> = Vec::new();
+        let mut to_redraw: HashSet<Target> = HashSet::new();
+
+        for action in actions {
+            match action {
+                // Move
+                Action {
+                    target,
+                    action: Actions::Move { dest },
+                } => {
+                    if let Ok(target_dest) = self.move_item(target, dest) {
+                        // Successfull move, add reaction
+                        reactions
+                            .push(Action::new(target_dest, Actions::Move { dest }))
+                            .unwrap();
+                        // Mark to redraw old destination cell
+                        to_redraw.insert(target);
+                    }
+                }
+
+                // Redraw
+                Action {
+                    target,
+                    action: Actions::Redraw,
+                } => {
+                    to_redraw.insert(target);
+                }
+            }
+        }
+        (reactions, to_redraw)
+    }
+
+    pub fn on_reactions(&mut self, reactions: Vec<Action, MAX_EVENTS>) {
+        reactions.into_iter().for_each(|Action { target, action }| {
+            self.0[target.y][target.x].on_reactions(Action::new(target, action))
+        });
+    }
+
+    pub fn tile_id(&self, x: usize, y: usize) -> usize {
+        self.0[y][x].tile_id()
+    }
+
+    fn move_item(&mut self, src: Target, dest: MoveDestination) -> Result<Target, CellError> {
+        if let Some(cell) = self.get_cell_mut(src.x, src.y) {
+            let item = cell.take_item(src.z);
+            if let Some(item) = item {
+                let mut new_target = Target::new(0, 0, 0);
+
+                let dest_cell = match dest {
+                    MoveDestination::Up => {
+                        new_target.x = src.x;
+                        new_target.y = src.y + 1;
+                        self.get_cell_mut(new_target.x, new_target.y)
+                    }
+                    MoveDestination::Down => {
+                        new_target.x = src.x;
+                        new_target.y = src.y - 1;
+                        self.get_cell_mut(new_target.x, new_target.y)
+                    }
+                    MoveDestination::Left => {
+                        new_target.x = src.x - 1;
+                        new_target.y = src.y;
+                        self.get_cell_mut(new_target.x, new_target.y)
+                    }
+                    MoveDestination::Right => {
+                        new_target.x = src.x + 1;
+                        new_target.y = src.y;
+                        self.get_cell_mut(new_target.x, new_target.y)
+                    }
+                };
+
+                if let Some(cell) = dest_cell {
+                    cell.set_item(item);
+                    new_target.z = src.z;
+                    return Ok(new_target);
+                }
+
+                self.get_cell_mut(src.x, src.y).unwrap().set_item(item);
+            }
+        }
+
+        Err(CellError::MoveError)
+    }
+
+    fn in_bound(&self, x: usize, y: usize) -> bool {
+        x < MAX_X && y < MAX_Y
+    }
+
+    fn get_cell_mut(&mut self, x: usize, y: usize) -> Option<&mut Cell> {
+        match self.in_bound(x, y) {
+            true => Some(&mut self.0[y][x]),
+            false => None,
+        }
+    }
+
+    fn get_cell_items_len(&mut self, x: usize, y: usize) -> usize {
+        if let Some(cell) = self.get_cell_mut(x, y) {
+            let items: Vec<&Option<Box<dyn ItemTrait>>, LAYERS> =
+                cell.items.iter().filter(|item| item.is_some()).collect();
+            items.len()
+        } else {
+            0
+        }
+    }
+}
+
+impl From<[[usize; MAX_X]; MAX_Y]> for Grid {
+    fn from(array: [[usize; MAX_X]; MAX_Y]) -> Self {
+        let mut grid: [[Cell; MAX_X]; MAX_Y] = Default::default();
+        for x in 0..MAX_X {
+            for y in 0..MAX_Y {
+                let img_id = array[y][x];
+                grid[y][x] = Cell::new_static_sprite(Point::new(x as i32, y as i32), img_id);
+            }
+        }
+        Grid(grid)
+    }
+}
+
+impl Index<usize> for Grid {
+    type Output = [Cell; MAX_X];
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+impl IndexMut<usize> for Grid {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
+    }
+}
+
+#[derive(Debug)]
+enum CellError {
+    MoveError,
+}
+
+impl Error for CellError {}
+
+impl fmt::Display for CellError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            CellError::MoveError => write!(f, "Validation failed"),
+        }
+    }
+}

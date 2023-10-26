@@ -1,24 +1,26 @@
-use crate::events::Event;
-use crate::game::cell::Grid;
 use crate::game::colors::*;
+use crate::game::events::Event;
 use crate::game::flash::Flash;
-use crate::game::items::wizard::Wizard;
-use crate::game::items::Item;
 use crate::game::state_mashine::State;
 use crate::game::tiles::*;
-use crate::game::Drawable;
-use crate::game::Tick;
 use crate::game::{MAX_X, MAX_Y};
 use crate::ili9486::Display;
 use crate::ili9486::GameDisplay;
 use alloc::boxed::Box;
 use async_trait::async_trait;
+use core::fmt::Write;
 use core::marker::PhantomData;
 use defmt::info;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::Point;
-use heapless::FnvIndexMap;
+use grid::Grid;
+use heapless::{FnvIndexMap, String};
+use items::{wizard::Wizard, Item};
 extern crate alloc;
+
+pub mod actions;
+pub mod grid;
+pub mod items;
 
 pub struct Level1;
 pub struct Level2;
@@ -36,32 +38,21 @@ impl<L> Level<L> {
     {
         for x in 0..MAX_X {
             for y in 0..MAX_Y {
-                let img_id = self.grid[y][x].tile_id();
-                let data = self.tiles.get(&img_id).expect("Unknown img_id");
+                let img_id = self.grid.tile_id(x, y);
+
+                let data = self.tiles.get(&img_id).expect(format_err(img_id).as_str());
                 display
                     .draw_tile(Point::new(32 * x as i32, 32 * y as i32), data)
                     .await;
             }
         }
     }
+}
 
-    pub async fn tick<D>(&mut self, time: u128, display: &mut D)
-    where
-        D: GameDisplay + Display<u8, Color = Rgb565> + Send,
-    {
-        for x in 0..MAX_X {
-            for y in 0..MAX_Y {
-                let redraw = self.grid[y][x].tick(time);
-                if redraw {
-                    let img_id = self.grid[y][x].tile_id();
-                    let data = self.tiles.get(&img_id).expect("Unknown img_id");
-                    display
-                        .draw_tile(Point::new(32 * x as i32, 32 * y as i32), data)
-                        .await;
-                }
-            }
-        }
-    }
+fn format_err(img_id: usize) -> String<24> {
+    let mut s: String<24> = String::new();
+    write!(&mut s, "Unknown img_id: {}", img_id).unwrap();
+    s
 }
 
 impl Level<Level1> {
@@ -82,14 +73,14 @@ impl Level<Level1> {
         let tiles: FnvIndexMap<usize, [u8; 32 * 32 * 2], 32> = FnvIndexMap::new();
 
         ///////////
-        let char: Item<Wizard> = Item::new(Point::new(7, 7), 1, Tile::wizard1_id());
+        let char: Item<Wizard> = Item::new(Point::new(10, 5), 1, Tile::wizard1_id());
         let mut grid: Grid = level.into();
         let cell = &mut grid[5][10];
         cell.set_item(Box::new(char));
         ///////////
 
         Level {
-            grid,
+            grid: grid,
             tiles,
             idx: Default::default(),
         }
@@ -103,10 +94,20 @@ where
     F: Flash + Send + Sync,
 {
     async fn on_event(&mut self, event: Event, display: &mut D) -> Option<Box<dyn State<D, F>>> {
-        match event {
-            Event::Tick(time) => self.tick(time, display).await,
-            _ => (),
+        let requests = self.grid.on_event(&event);
+        let (reactions, to_redraw) = self.grid.on_actions(requests);
+
+        self.grid.on_reactions(reactions);
+
+        // Redraw cells
+        for target in to_redraw {
+            let img_id = self.grid.tile_id(target.x, target.y);
+            let data = self.tiles.get(&img_id).expect("Unknown img_id");
+            display
+                .draw_tile(Point::new(32 * target.x as i32, 32 * target.y as i32), data)
+                .await;
         }
+
         None
     }
 

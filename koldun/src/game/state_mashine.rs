@@ -1,4 +1,4 @@
-use crate::events::Event;
+use crate::game::events::Event;
 use crate::game::flash::Flash;
 use crate::game::state_mashine::states::initial::Initial;
 use crate::game::state_mashine::states::State;

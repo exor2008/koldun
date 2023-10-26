@@ -26,7 +26,7 @@ use embedded_graphics::{
     text::Text,
 };
 // use heapless::Vec;
-use koldun::events::{Buttons, Event, States};
+use koldun::game::events::{Buttons, Event, States};
 // use koldun::game::colors;
 use koldun::game::flash::FlashAccess;
 use koldun::game::state_mashine::StateMachine;
@@ -151,11 +151,11 @@ async fn main(spawner: Spawner) {
     let flash = RPFlash::new(p.FLASH, p.DMA_CH1);
     let flash = FlashAccess::new(flash);
 
-    info!("Heap used {}", heap::HEAP.used());
     let mut sm = StateMachine::new(display, flash);
     sm.on_control(Event::Button(Buttons::Down(States::Pressed)))
         .await;
-    info!("Heap used {}", heap::HEAP.used());
+    sm.on_control(Event::Button(Buttons::Right(States::Pressed)))
+        .await;
 
     // let mut c = 0;
     // let mut ticker = Ticker::every(Duration::from_hz(10));

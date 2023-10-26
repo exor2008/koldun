@@ -1,4 +1,3 @@
-pub mod pio_parallel;
 use crate::ili9486::pio_parallel::PioParallel;
 use alloc::boxed::Box;
 use async_trait::async_trait;
@@ -17,6 +16,8 @@ use embedded_graphics::Pixel;
 use heapless::Vec;
 use tinytga::Tga;
 extern crate alloc;
+
+pub mod pio_parallel;
 
 pub enum PixelFormat {
     Bit16 = 0b0101_0101,
