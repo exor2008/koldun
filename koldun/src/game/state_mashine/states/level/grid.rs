@@ -127,8 +127,9 @@ impl Grid {
                         reactions
                             .push(Action::new(target_dest, Actions::Move { dest }))
                             .unwrap();
-                        // Mark to redraw old destination cell
+                        // Mark to redraw destination and source cells
                         to_redraw.insert(target);
+                        to_redraw.insert(target_dest);
                     }
                 }
 
