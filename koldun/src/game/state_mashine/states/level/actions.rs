@@ -15,7 +15,9 @@ impl Action {
 #[derive(Debug, Format)]
 pub enum Actions {
     Move { dest: MoveDestination },
+    RedrawAnim(i8, i8, Target),
     Redraw,
+    Block(bool),
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Format)]
@@ -37,4 +39,49 @@ pub enum MoveDestination {
     Down,
     Left,
     Right,
+}
+
+#[derive(Eq, Hash, PartialEq, Debug)]
+pub struct RedrawRequest {
+    pub target: Target,
+    // pub old_target: Option<Target>,
+    pub shift: Pos,
+}
+
+impl RedrawRequest {
+    pub fn new(target: Target) -> Self {
+        RedrawRequest {
+            target,
+            // old_target: None,
+            shift: Pos::default(),
+        }
+    }
+    pub fn new_anim(target: Target, shift: Pos) -> Self {
+        RedrawRequest {
+            target,
+            // old_target: Some(old_target),
+            shift,
+        }
+    }
+}
+
+#[derive(Eq, Hash, PartialEq, Debug)]
+pub struct Pos {
+    pub x: isize,
+    pub y: isize,
+}
+
+impl Pos {
+    pub fn new(x: isize, y: isize) -> Self {
+        Pos { x, y }
+    }
+}
+
+impl Default for Pos {
+    fn default() -> Self {
+        Pos {
+            x: Default::default(),
+            y: Default::default(),
+        }
+    }
 }

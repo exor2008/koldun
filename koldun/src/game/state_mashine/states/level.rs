@@ -28,6 +28,7 @@ pub struct Level2;
 pub struct Level<L> {
     grid: Grid,
     tiles: FnvIndexMap<usize, [u8; 32 * 32 * 2], 32>,
+    block: bool,
     idx: PhantomData<L>,
 }
 
@@ -82,6 +83,7 @@ impl Level<Level1> {
         Level {
             grid: grid,
             tiles,
+            block: Default::default(),
             idx: Default::default(),
         }
     }
@@ -94,17 +96,33 @@ where
     F: Flash + Send + Sync,
 {
     async fn on_event(&mut self, event: Event, display: &mut D) -> Option<Box<dyn State<D, F>>> {
+        if self.block {
+            match event {
+                Event::Button(_) => return None,
+                _ => (),
+            }
+        }
+
         let requests = self.grid.on_event(&event);
-        let (reactions, to_redraw) = self.grid.on_actions(requests);
+        let (reactions, to_redraw, block) = self.grid.on_actions(requests);
+        if let Some(block) = block {
+            self.block = block
+        };
 
         self.grid.on_reactions(reactions);
 
         // Redraw cells
-        for target in to_redraw {
-            let img_id = self.grid.tile_id(target.x, target.y);
+        for request in to_redraw {
+            let img_id = self.grid.tile_id(request.target.x, request.target.y);
             let data = self.tiles.get(&img_id).expect("Unknown img_id");
             display
-                .draw_tile(Point::new(32 * target.x as i32, 32 * target.y as i32), data)
+                .draw_tile(
+                    Point::new(
+                        (TILE_SIZE_X as isize * request.target.x as isize + request.shift.x) as i32,
+                        (TILE_SIZE_Y as isize * request.target.y as isize + request.shift.y) as i32,
+                    ),
+                    data,
+                )
                 .await;
         }
 
@@ -134,6 +152,18 @@ where
             .unwrap();
         self.tiles
             .insert(Tile::wizard2_id(), Tile::wizard2(WIZARD_FG, WALL_BG))
+            .unwrap();
+        self.tiles
+            .insert(
+                Tile::wizard_left1_id(),
+                Tile::wizard_left1(WIZARD_FG, WALL_BG),
+            )
+            .unwrap();
+        self.tiles
+            .insert(
+                Tile::wizard_left2_id(),
+                Tile::wizard_left2(WIZARD_FG, WALL_BG),
+            )
             .unwrap();
 
         self.redraw_all(display).await

@@ -1,13 +1,13 @@
-use super::actions::{Action, Actions, MoveDestination, Target};
-use super::items::{sprite::StaticSprite, Drawable, Item, ItemTrait};
+use super::actions::{Action, Actions, MoveDestination, Pos, RedrawRequest, Target};
+use super::items::{sprite::StaticSprite, Drawable, Item, ItemTrait, MAX_ACTIONS_PER_EVENT};
 use crate::game::events::Event;
 use crate::game::{MAX_X, MAX_Y};
+use crate::{add_to_redraw, h_vec};
 use alloc::boxed::Box;
 use core::error::Error;
 use core::fmt;
 use core::ops::{Index, IndexMut};
 use embedded_graphics::prelude::Point;
-use hashbrown::HashSet;
 use heapless::Vec;
 
 extern crate alloc;
@@ -63,9 +63,12 @@ impl Cell {
     fn on_event(&mut self, event: &Event) -> Vec<Action, MAX_EVENTS> {
         self.items
             .iter_mut()
-            .filter_map(|item| match item {
-                Some(item) => item.on_event(event),
-                None => None,
+            .flat_map(|item| {
+                if let Some(item) = item {
+                    item.on_event(event)
+                } else {
+                    h_vec![MAX_ACTIONS_PER_EVENT;]
+                }
             })
             .collect()
     }
@@ -111,9 +114,14 @@ impl Grid {
     pub fn on_actions(
         &mut self,
         actions: Vec<Action, MAX_EVENTS>,
-    ) -> (Vec<Action, MAX_EVENTS>, HashSet<Target>) {
+    ) -> (
+        Vec<Action, MAX_EVENTS>,
+        Vec<RedrawRequest, 32>,
+        Option<bool>,
+    ) {
         let mut reactions: Vec<Action, MAX_EVENTS> = Vec::new();
-        let mut to_redraw: HashSet<Target> = HashSet::new();
+        let mut to_redraw: Vec<RedrawRequest, 32> = Vec::new();
+        let mut block: Option<bool> = None;
 
         for action in actions {
             match action {
@@ -122,14 +130,14 @@ impl Grid {
                     target,
                     action: Actions::Move { dest },
                 } => {
-                    if let Ok(target_dest) = self.move_item(target, dest) {
+                    if let Ok(new_target) = self.move_item(target, dest) {
                         // Successfull move, add reaction
                         reactions
-                            .push(Action::new(target_dest, Actions::Move { dest }))
+                            .push(Action::new(new_target, Actions::Move { dest }))
                             .unwrap();
-                        // Mark to redraw destination and source cells
-                        to_redraw.insert(target);
-                        to_redraw.insert(target_dest);
+
+                        // Block controlls
+                        block = Some(true);
                     }
                 }
 
@@ -138,11 +146,30 @@ impl Grid {
                     target,
                     action: Actions::Redraw,
                 } => {
-                    to_redraw.insert(target);
+                    let request = RedrawRequest::new(target);
+                    add_to_redraw!(to_redraw, request);
                 }
+
+                // Redraw moving animated object
+                Action {
+                    target,
+                    action: Actions::RedrawAnim(shift_x, shift_y, old_target),
+                } => {
+                    let request = RedrawRequest::new(old_target);
+                    add_to_redraw!(to_redraw, request);
+
+                    let request =
+                        RedrawRequest::new_anim(target, Pos::new(shift_x.into(), shift_y.into()));
+                    add_to_redraw!(to_redraw, request);
+                }
+
+                Action {
+                    target,
+                    action: Actions::Block(block_),
+                } => block = Some(block_),
             }
         }
-        (reactions, to_redraw)
+        (reactions, to_redraw, block)
     }
 
     pub fn on_reactions(&mut self, reactions: Vec<Action, MAX_EVENTS>) {

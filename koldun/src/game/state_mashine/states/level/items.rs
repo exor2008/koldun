@@ -1,17 +1,21 @@
 use super::actions::{Action, Actions, Target};
 use super::Event;
 use crate::game::{MAX_X, MAX_Y};
+use crate::h_vec;
 use crate::ili9486::GameDisplay;
 use core::marker::PhantomData;
 use embedded_graphics::prelude::Point;
+use heapless::Vec;
 extern crate alloc;
 
 pub mod sprite;
 pub mod wizard;
 
+pub const MAX_ACTIONS_PER_EVENT: usize = 3;
+
 pub trait OnEvent {
-    fn on_event(&mut self, _event: &Event) -> Option<Action> {
-        None
+    fn on_event(&mut self, _event: &Event) -> Vec<Action, MAX_ACTIONS_PER_EVENT> {
+        h_vec!(MAX_ACTIONS_PER_EVENT;)
     }
 }
 
@@ -74,6 +78,8 @@ pub struct Item<I> {
     coords: Point,
     img_id: usize,
     state: u8,
+    start_animation: u128,
+    time: u128,
     kind: PhantomData<I>,
 }
 
@@ -110,6 +116,8 @@ impl<I> Item<I> {
             coords,
             img_id,
             state: Default::default(),
+            start_animation: Default::default(),
+            time: Default::default(),
             kind: Default::default(),
         }
     }
