@@ -74,7 +74,7 @@ impl Level<Level1> {
         let tiles: FnvIndexMap<usize, [u8; 32 * 32 * 2], 32> = FnvIndexMap::new();
 
         ///////////
-        let char: Item<Wizard> = Item::new(Point::new(10, 5), 1, Tile::wizard1_id());
+        let char: Item<Wizard> = Item::new(Point::new(10, 5), 1, Tile::wizard_idle1_id());
         let mut grid: Grid = level.into();
         let cell = &mut grid[5][10];
         cell.set_item(Box::new(char));
@@ -148,10 +148,34 @@ where
             .insert(Tile::wall4_id(), Tile::wall4(WALL_FG, WALL_BG))
             .unwrap();
         self.tiles
-            .insert(Tile::wizard1_id(), Tile::wizard1(WIZARD_FG, WALL_BG))
+            .insert(
+                Tile::wizard_idle1_id(),
+                Tile::wizard_idle1(WIZARD_FG, WALL_BG),
+            )
             .unwrap();
         self.tiles
-            .insert(Tile::wizard2_id(), Tile::wizard2(WIZARD_FG, WALL_BG))
+            .insert(
+                Tile::wizard_idle2_id(),
+                Tile::wizard_idle2(WIZARD_FG, WALL_BG),
+            )
+            .unwrap();
+        self.tiles
+            .insert(Tile::wizard_up1_id(), Tile::wizard_up1(WIZARD_FG, WALL_BG))
+            .unwrap();
+        self.tiles
+            .insert(Tile::wizard_up2_id(), Tile::wizard_up2(WIZARD_FG, WALL_BG))
+            .unwrap();
+        self.tiles
+            .insert(
+                Tile::wizard_down1_id(),
+                Tile::wizard_down1(WIZARD_FG, WALL_BG),
+            )
+            .unwrap();
+        self.tiles
+            .insert(
+                Tile::wizard_down2_id(),
+                Tile::wizard_down2(WIZARD_FG, WALL_BG),
+            )
             .unwrap();
         self.tiles
             .insert(
@@ -163,6 +187,18 @@ where
             .insert(
                 Tile::wizard_left2_id(),
                 Tile::wizard_left2(WIZARD_FG, WALL_BG),
+            )
+            .unwrap();
+        self.tiles
+            .insert(
+                Tile::wizard_right1_id(),
+                Tile::wizard_right1(WIZARD_FG, WALL_BG),
+            )
+            .unwrap();
+        self.tiles
+            .insert(
+                Tile::wizard_right2_id(),
+                Tile::wizard_right2(WIZARD_FG, WALL_BG),
             )
             .unwrap();
 

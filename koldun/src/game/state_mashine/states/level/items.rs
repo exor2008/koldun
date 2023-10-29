@@ -42,11 +42,11 @@ pub trait Coord<const MAX_X: usize, const MAX_Y: usize> {
     fn target(&self) -> Target;
 
     fn move_up(&mut self) {
-        self._move(self.coords().x as usize, self.coords().y as usize + 1);
+        self._move(self.coords().x as usize, self.coords().y as usize - 1);
     }
 
     fn move_down(&mut self) {
-        self._move(self.coords().x as usize, self.coords().y as usize - 1);
+        self._move(self.coords().x as usize, self.coords().y as usize + 1);
     }
 
     fn move_right(&mut self) {

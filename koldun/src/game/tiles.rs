@@ -11,14 +11,52 @@ pub const WALL1: (usize, usize) = (0, 2);
 pub const WALL2: (usize, usize) = (0, 3);
 pub const WALL3: (usize, usize) = (0, 4);
 pub const WALL4: (usize, usize) = (0, 5);
-pub const WIZARD1: (usize, usize) = (0, 6);
-pub const WIZARD2: (usize, usize) = (0, 7);
-pub const WIZARD_LEFT1: (usize, usize) = (0, 8);
-pub const WIZARD_LEFT2: (usize, usize) = (0, 9);
+pub const BRICK_WALL1: (usize, usize) = (0, 6);
+pub const BRICK_WALL2: (usize, usize) = (0, 7);
+pub const BRICK_WALL3: (usize, usize) = (0, 8);
+pub const PLATE_WALL1: (usize, usize) = (0, 9);
+pub const PLATE_WALL2: (usize, usize) = (0, 10);
+pub const STONE1: (usize, usize) = (0, 11);
+pub const STONE2: (usize, usize) = (0, 12);
+pub const STONE3: (usize, usize) = (0, 13);
+pub const GROUND1: (usize, usize) = (0, 14);
+pub const GROUND2: (usize, usize) = (0, 15);
+pub const FENCE: (usize, usize) = (0, 16);
+pub const DOOR_FENCE: (usize, usize) = (0, 17);
+pub const DOOR_WOOD: (usize, usize) = (0, 18);
+pub const DOOR_OPEN: (usize, usize) = (0, 19);
+pub const TABLE: (usize, usize) = (0, 20);
+pub const CHAIR: (usize, usize) = (0, 21);
+pub const PINES: (usize, usize) = (0, 22);
+pub const PINE: (usize, usize) = (0, 23);
+pub const TREE: (usize, usize) = (0, 24);
+pub const TREES: (usize, usize) = (0, 25);
+pub const MUSHROOM: (usize, usize) = (0, 26);
+pub const MUSHROOMS: (usize, usize) = (0, 27);
+pub const DEBRIS1: (usize, usize) = (0, 28);
+pub const DEBRIS2: (usize, usize) = (0, 29);
+pub const BRIDGE_WOOD1: (usize, usize) = (0, 30);
+pub const BRIDGE_WOOD2: (usize, usize) = (0, 31);
 
-pub const TILEMAPS: [&[u8; 4096]; 1] = [include_bytes!(
-    "..\\..\\resources\\tiles\\compressed\\tiles0.bin"
-)];
+pub const WIZARD_IDLE1: (usize, usize) = (1, 0);
+pub const WIZARD_IDLE2: (usize, usize) = (1, 1);
+pub const WIZARD_DOWN1: (usize, usize) = (1, 2);
+pub const WIZARD_DOWN2: (usize, usize) = (1, 3);
+pub const WIZARD_UP1: (usize, usize) = (1, 4);
+pub const WIZARD_UP2: (usize, usize) = (1, 5);
+pub const WIZARD_LEFT1: (usize, usize) = (1, 6);
+pub const WIZARD_LEFT2: (usize, usize) = (1, 7);
+pub const WIZARD_RIGHT1: (usize, usize) = (1, 8);
+pub const WIZARD_RIGHT2: (usize, usize) = (1, 9);
+
+pub const SPIDER1: (usize, usize) = (1, 29);
+pub const SPIDER2: (usize, usize) = (1, 30);
+pub const WEB: (usize, usize) = (1, 31);
+
+pub const TILEMAPS: [&[u8; 4096]; 2] = [
+    include_bytes!("..\\..\\resources\\tiles\\compressed\\tiles0.bin"),
+    include_bytes!("..\\..\\resources\\tiles\\compressed\\tiles1.bin"),
+];
 
 #[render_tiles(
     EMPTY,
@@ -27,10 +65,16 @@ pub const TILEMAPS: [&[u8; 4096]; 1] = [include_bytes!(
     WALL2,
     WALL3,
     WALL4,
-    WIZARD1,
-    WIZARD2,
+    WIZARD_IDLE1,
+    WIZARD_IDLE2,
+    WIZARD_UP1,
+    WIZARD_UP2,
+    WIZARD_DOWN1,
+    WIZARD_DOWN2,
     WIZARD_LEFT1,
-    WIZARD_LEFT2
+    WIZARD_LEFT2,
+    WIZARD_RIGHT1,
+    WIZARD_RIGHT2
 )]
 pub struct Tile {}
 

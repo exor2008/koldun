@@ -164,7 +164,7 @@ impl Grid {
                 }
 
                 Action {
-                    target,
+                    target: _,
                     action: Actions::Block(block_),
                 } => block = Some(block_),
             }
@@ -191,12 +191,12 @@ impl Grid {
                 let dest_cell = match dest {
                     MoveDestination::Up => {
                         new_target.x = src.x;
-                        new_target.y = src.y + 1;
+                        new_target.y = src.y - 1;
                         self.get_cell_mut(new_target.x, new_target.y)
                     }
                     MoveDestination::Down => {
                         new_target.x = src.x;
-                        new_target.y = src.y - 1;
+                        new_target.y = src.y + 1;
                         self.get_cell_mut(new_target.x, new_target.y)
                     }
                     MoveDestination::Left => {
