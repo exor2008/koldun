@@ -59,16 +59,16 @@ fn format_err(img_id: usize) -> String<24> {
 impl Level<Level1> {
     pub fn new() -> Self {
         let level: [[usize; MAX_X]; MAX_Y] = [
-            [4, 2, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [2, 1, 1, 1, 1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1],
-            [2, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1],
-            [3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [2, 1, 1, 1, 3, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1],
-            [3, 1, 1, 1, 3, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1],
-            [3, 1, 1, 1, 1, 3, 2, 4, 1, 1, 1, 1, 1, 1, 1],
-            [4, 3, 3, 2, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [0, 0, 0, 0, 36, 0, 0, 0, 0, 38, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 37, 0, 0, 0, 0, 36, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 38, 0, 0, 0, 0, 36, 0, 0, 0, 0, 0],
+            [42, 0, 0, 0, 36, 0, 0, 0, 0, 37, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 37, 0, 0, 0, 0, 38, 0, 0, 0, 0, 0],
+            [0, 43, 0, 0, 38, 37, 4, 36, 37, 36, 0, 0, 0, 0, 0],
+            [0, 42, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 7, 6],
+            [0, 3, 41, 0, 3, 3, 2, 0, 0, 0, 0, 7, 6, 51, 50],
+            [2, 3, 2, 3, 2, 3, 0, 0, 0, 0, 0, 6, 51, 50, 51],
+            [42, 43, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 50, 51, 50],
         ];
 
         let tiles: FnvIndexMap<usize, [u8; 32 * 32 * 2], 32> = FnvIndexMap::new();
@@ -133,20 +133,53 @@ where
         info!("Level1 Init");
 
         self.tiles
-            .insert(Tile::floor_id(), Tile::floor(WALL_FG, WALL_BG))
+            .insert(Tile::empty_id(), Tile::empty(WALL_FG, WALL_BG))
             .unwrap();
         self.tiles
-            .insert(Tile::wall1_id(), Tile::wall1(WALL_FG, WALL_BG))
+            .insert(Tile::brick_wall1_id(), Tile::brick_wall1(WALL_FG, WALL_BG))
             .unwrap();
         self.tiles
-            .insert(Tile::wall2_id(), Tile::wall2(WALL_FG, WALL_BG))
+            .insert(Tile::brick_wall2_id(), Tile::brick_wall2(WALL_FG, WALL_BG))
             .unwrap();
         self.tiles
-            .insert(Tile::wall3_id(), Tile::wall3(WALL_FG, WALL_BG))
+            .insert(Tile::brick_wall3_id(), Tile::brick_wall3(WALL_FG, WALL_BG))
+            .unwrap();
+
+        self.tiles
+            .insert(Tile::stone1_id(), Tile::stone1(WALL_FG, WALL_BG))
             .unwrap();
         self.tiles
-            .insert(Tile::wall4_id(), Tile::wall4(WALL_FG, WALL_BG))
+            .insert(Tile::stone2_id(), Tile::stone2(WALL_FG, WALL_BG))
             .unwrap();
+        self.tiles
+            .insert(Tile::stone3_id(), Tile::stone3(WALL_FG, WALL_BG))
+            .unwrap();
+
+        self.tiles
+            .insert(Tile::debris1_id(), Tile::debris1(WALL_FG, WALL_BG))
+            .unwrap();
+        self.tiles
+            .insert(Tile::debris2_id(), Tile::debris2(WALL_FG, WALL_BG))
+            .unwrap();
+
+        self.tiles
+            .insert(Tile::tree_id(), Tile::tree(WALL_FG, WALL_BG))
+            .unwrap();
+        self.tiles
+            .insert(Tile::trees_id(), Tile::trees(WALL_FG, WALL_BG))
+            .unwrap();
+
+        self.tiles
+            .insert(Tile::ground1_id(), Tile::ground1(WALL_FG, WALL_BG))
+            .unwrap();
+        self.tiles
+            .insert(Tile::ground2_id(), Tile::ground2(WALL_FG, WALL_BG))
+            .unwrap();
+
+        self.tiles
+            .insert(Tile::door_open_id(), Tile::door_open(WALL_FG, WALL_BG))
+            .unwrap();
+
         self.tiles
             .insert(
                 Tile::wizard_idle1_id(),

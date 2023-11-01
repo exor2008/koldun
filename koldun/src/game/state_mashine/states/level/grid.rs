@@ -31,13 +31,22 @@ impl Cell {
         Cell { coords, items }
     }
 
-    fn new_static_sprite(coords: Point, img_id: usize) -> Self {
+    fn new_static_sprite(coords: Point, img_id: usize, z_order: usize) -> Self {
         let mut items: Vec<Option<Box<dyn ItemTrait>>, LAYERS> = Vec::new();
-        let sprite: Item<StaticSprite> = Item::new(coords, 0, img_id);
-        unsafe {
-            items.push_unchecked(Some(Box::new(sprite)));
+        let sprite: Item<StaticSprite> = Item::new(coords, z_order, img_id);
+
+        if z_order == 0 {
+            unsafe {
+                items.push_unchecked(Some(Box::new(sprite)));
+                items.push_unchecked(None);
+            }
+        } else {
+            unsafe {
+                items.push_unchecked(None);
+                items.push_unchecked(Some(Box::new(sprite)));
+            }
         }
-        for _ in 0..LAYERS - 1 {
+        for _ in 0..LAYERS - 2 {
             unsafe {
                 items.push_unchecked(None);
             }
@@ -52,6 +61,10 @@ impl Cell {
 
     pub fn take_item(&mut self, z_level: usize) -> Option<Box<dyn ItemTrait>> {
         self.items[z_level].take()
+    }
+
+    pub fn has_item(&mut self, z_level: usize) -> bool {
+        self.items[z_level].is_some()
     }
 
     fn get_items_len(&self) -> usize {
@@ -212,11 +225,14 @@ impl Grid {
                 };
 
                 if let Some(cell) = dest_cell {
-                    cell.set_item(item);
-                    new_target.z = src.z;
-                    return Ok(new_target);
+                    if !cell.has_item(item.z_level()) {
+                        cell.set_item(item);
+                        new_target.z = src.z;
+                        return Ok(new_target);
+                    }
                 }
 
+                // Move unseccessful, rollback
                 self.get_cell_mut(src.x, src.y).unwrap().set_item(item);
             }
         }
@@ -252,7 +268,9 @@ impl From<[[usize; MAX_X]; MAX_Y]> for Grid {
         for x in 0..MAX_X {
             for y in 0..MAX_Y {
                 let img_id = array[y][x];
-                grid[y][x] = Cell::new_static_sprite(Point::new(x as i32, y as i32), img_id);
+                let z_order = if img_id <= 32 { 0 } else { 1 };
+                grid[y][x] =
+                    Cell::new_static_sprite(Point::new(x as i32, y as i32), img_id, z_order);
             }
         }
         Grid(grid)
