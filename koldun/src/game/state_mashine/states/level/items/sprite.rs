@@ -14,7 +14,7 @@ impl OnEvent for Item<StaticSprite> {
 
 impl OnReaction for Item<StaticSprite> {
     fn on_reaction(&mut self, _action: &Action) {
-        unimplemented!("Static sprites shouldn't receive reactions")
+        // unimplemented!("Static sprites shouldn't receive reactions")
     }
 }
 

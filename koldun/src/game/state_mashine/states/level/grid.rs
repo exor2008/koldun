@@ -131,23 +131,28 @@ impl Grid {
         Vec<Action, MAX_EVENTS>,
         Vec<RedrawRequest, 32>,
         Option<bool>,
+        bool,
     ) {
         let mut reactions: Vec<Action, MAX_EVENTS> = Vec::new();
         let mut to_redraw: Vec<RedrawRequest, 32> = Vec::new();
         let mut block: Option<bool> = None;
+        let mut is_win: bool = false;
 
         for action in actions {
             match action {
                 // Move
                 Action {
                     target,
-                    action: Actions::Move { dest },
+                    action: Actions::Move { dest, who },
                 } => {
-                    if let Ok(new_target) = self.move_item(target, dest) {
+                    if let Ok(mut new_target) = self.move_item(target, dest) {
                         // Successfull move, add reaction
-                        reactions
-                            .push(Action::new(new_target, Actions::Move { dest }))
-                            .unwrap();
+                        for z in 0..LAYERS {
+                            new_target.z = z;
+                            reactions
+                                .push(Action::new(new_target, Actions::Move { dest, who }))
+                                .unwrap();
+                        }
 
                         // Block controlls
                         block = Some(true);
@@ -176,13 +181,20 @@ impl Grid {
                     add_to_redraw!(to_redraw, request);
                 }
 
+                // Block control events
                 Action {
                     target: _,
                     action: Actions::Block(block_),
                 } => block = Some(block_),
+
+                // Win!
+                Action {
+                    target: _,
+                    action: Actions::Win,
+                } => is_win = true,
             }
         }
-        (reactions, to_redraw, block)
+        (reactions, to_redraw, block, is_win)
     }
 
     pub fn on_reactions(&mut self, reactions: Vec<Action, MAX_EVENTS>) {

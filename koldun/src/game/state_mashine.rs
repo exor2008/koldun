@@ -33,9 +33,9 @@ where
     }
 
     pub async fn on_control(&mut self, event: Event) {
-        if let Some(mut state) = self.state.on_event(event, &mut self.display).await {
-            state.on_init(&mut self.display, &mut self.flash).await;
+        if let Some(state) = self.state.on_event(event, &mut self.display).await {
             self.state = state;
+            self.state.on_init(&mut self.display, &mut self.flash).await;
         }
     }
 }

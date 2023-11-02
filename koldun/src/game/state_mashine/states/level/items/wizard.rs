@@ -1,6 +1,6 @@
 use super::{Action, Actions, Coord, Item, ItemTrait, OnEvent, OnReaction, MAX_ACTIONS_PER_EVENT};
 use crate::game::events::{Buttons, Event, States};
-use crate::game::state_mashine::states::level::actions::MoveDestination;
+use crate::game::state_mashine::states::level::actions::{MoveDestination, Who};
 use crate::game::tiles::{Tile, TILE_SIZE_X, TILE_SIZE_Y};
 use crate::h_vec;
 use defmt::warn;
@@ -212,6 +212,7 @@ impl OnEvent for Item<Wizard> {
                     self.target(),
                     Actions::Move {
                         dest: MoveDestination::Up,
+                        who: Who::Wizard
                     },
                 ))
             }
@@ -221,6 +222,7 @@ impl OnEvent for Item<Wizard> {
                     self.target(),
                     Actions::Move {
                         dest: MoveDestination::Down,
+                        who: Who::Wizard
                     },
                 ))
             }
@@ -230,6 +232,7 @@ impl OnEvent for Item<Wizard> {
                     self.target(),
                     Actions::Move {
                         dest: MoveDestination::Left,
+                        who: Who::Wizard
                     },
                 ))
             }
@@ -239,6 +242,7 @@ impl OnEvent for Item<Wizard> {
                     self.target(),
                     Actions::Move {
                         dest: MoveDestination::Right,
+                        who: Who::Wizard
                     },
                 ))
             }
@@ -253,6 +257,7 @@ impl OnReaction for Item<Wizard> {
         match action.action {
             Actions::Move {
                 dest: MoveDestination::Up,
+                who: _,
             } => {
                 self.state = MOVE_UP1;
                 self.start_animation = self.time;
@@ -260,6 +265,7 @@ impl OnReaction for Item<Wizard> {
             }
             Actions::Move {
                 dest: MoveDestination::Down,
+                who: _,
             } => {
                 self.state = MOVE_DOWN1;
                 self.start_animation = self.time;
@@ -267,6 +273,7 @@ impl OnReaction for Item<Wizard> {
             }
             Actions::Move {
                 dest: MoveDestination::Left,
+                who: _,
             } => {
                 self.state = MOVE_LEFT1;
                 self.start_animation = self.time;
@@ -274,6 +281,7 @@ impl OnReaction for Item<Wizard> {
             }
             Actions::Move {
                 dest: MoveDestination::Right,
+                who: _,
             } => {
                 self.state = MOVE_RIGHT1;
                 self.start_animation = self.time;

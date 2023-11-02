@@ -14,10 +14,11 @@ impl Action {
 
 #[derive(Debug, Format)]
 pub enum Actions {
-    Move { dest: MoveDestination },
+    Move { dest: MoveDestination, who: Who },
     RedrawAnim(i8, i8, Target),
     Redraw,
     Block(bool),
+    Win,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Format)]
@@ -39,6 +40,11 @@ pub enum MoveDestination {
     Down,
     Left,
     Right,
+}
+
+#[derive(Debug, Clone, Copy, Format)]
+pub enum Who {
+    Wizard,
 }
 
 #[derive(Eq, Hash, PartialEq, Debug)]

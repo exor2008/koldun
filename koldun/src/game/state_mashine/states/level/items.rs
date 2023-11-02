@@ -1,4 +1,4 @@
-use super::actions::{Action, Actions, Target};
+use super::actions::{Action, Actions, Target, Who};
 use super::Event;
 use crate::game::{MAX_X, MAX_Y};
 use crate::h_vec;
@@ -8,6 +8,7 @@ use embedded_graphics::prelude::Point;
 use heapless::Vec;
 extern crate alloc;
 
+pub mod exit;
 pub mod sprite;
 pub mod wizard;
 
@@ -80,6 +81,7 @@ pub struct Item<I> {
     state: u8,
     start_animation: u128,
     time: u128,
+    is_win: bool,
     kind: PhantomData<I>,
 }
 
@@ -118,6 +120,7 @@ impl<I> Item<I> {
             state: Default::default(),
             start_animation: Default::default(),
             time: Default::default(),
+            is_win: Default::default(),
             kind: Default::default(),
         }
     }

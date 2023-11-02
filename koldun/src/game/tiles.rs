@@ -15,6 +15,8 @@ pub const DEBRIS1: (usize, usize) = (0, 6);
 pub const DEBRIS2: (usize, usize) = (0, 7);
 pub const BRIDGE_WOOD1: (usize, usize) = (0, 8);
 pub const BRIDGE_WOOD2: (usize, usize) = (0, 9);
+pub const EXIT_OPEN: (usize, usize) = (0, 10);
+pub const EXIT_CLOSED: (usize, usize) = (0, 11);
 
 pub const WALL1: (usize, usize) = (1, 0);
 pub const WALL2: (usize, usize) = (1, 1);
@@ -70,6 +72,8 @@ pub const TILEMAPS: [&[u8; 4096]; 3] = [
     DEBRIS2,
     BRIDGE_WOOD1,
     BRIDGE_WOOD2,
+    EXIT_OPEN,
+    EXIT_CLOSED,
     WALL1,
     WALL2,
     WALL3,
