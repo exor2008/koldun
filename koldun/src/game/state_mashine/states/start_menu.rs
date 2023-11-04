@@ -1,7 +1,7 @@
 use crate::game::colors;
 use crate::game::events::{Buttons, Event, States};
 use crate::game::flash::Flash;
-use crate::game::state_mashine::states::level::{Level, Level1};
+use crate::game::state_mashine::states::level::{level1::Level1, Level};
 use crate::game::state_mashine::states::State;
 use crate::ili9486::Display;
 use crate::ili9486::GameDisplay;
