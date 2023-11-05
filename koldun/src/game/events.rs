@@ -12,6 +12,7 @@ pub enum Buttons {
     Down(States),
     Left(States),
     Right(States),
+    Reset(States),
 }
 
 #[derive(Format)]

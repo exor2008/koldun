@@ -1,8 +1,9 @@
 use super::items::{exit::Exit, wizard::Wizard, Item};
-use super::{Grid, Level};
+use super::{Grid, Level, Levels};
 use crate::game::colors::*;
 use crate::game::events::Event;
 use crate::game::flash::Flash;
+use crate::game::state_mashine::states::spell::Spell;
 use crate::game::state_mashine::states::State;
 use crate::game::tiles::Tile;
 use crate::game::{MAX_X, MAX_Y};
@@ -54,6 +55,18 @@ impl Level<Level1> {
             idx: Default::default(),
         }
     }
+
+    pub fn from_grid(grid: &mut Grid) -> Self {
+        let grid = Grid::new_from(grid);
+        let tiles: HashMap<usize, [u8; 32 * 32 * 2]> = HashMap::with_capacity(24);
+
+        Self {
+            grid,
+            tiles,
+            block: Default::default(),
+            idx: Default::default(),
+        }
+    }
 }
 
 #[async_trait]
@@ -63,13 +76,19 @@ where
     F: Flash + Send + Sync,
 {
     async fn on_event(&mut self, event: Event, display: &mut D) -> Option<Box<dyn State<D, F>>> {
-        let is_win = self._on_event(event, display).await;
+        let (is_win, is_spell) = self._on_event(event, display).await;
+
         match is_win {
             true => {
                 self.tiles.clear();
                 self.tiles.shrink_to_fit();
-                Some(Box::new(Level::<Level1>::new()))
+                return Some(Box::new(Level::<Level1>::new()));
             }
+            false => (),
+        }
+
+        match is_spell {
+            true => Some(Box::new(Spell::from_grid(&mut self.grid, Levels::Level1))),
             false => None,
         }
     }

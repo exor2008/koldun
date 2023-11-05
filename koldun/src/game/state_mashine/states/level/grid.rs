@@ -111,6 +111,11 @@ impl Drawable for Cell {
 pub struct Grid([[Cell; MAX_X]; MAX_Y]);
 
 impl Grid {
+    pub fn new() -> Self {
+        let grid: [[Cell; MAX_X]; MAX_Y] = Default::default();
+        Self(grid)
+    }
+
     pub fn on_event(&mut self, event: &Event) -> Vec<Action, MAX_EVENTS> {
         let mut actions: Vec<Action, MAX_EVENTS> = Vec::new();
 
@@ -271,6 +276,23 @@ impl Grid {
         } else {
             0
         }
+    }
+
+    pub fn new_from(other: &mut Grid) -> Self {
+        let mut grid = Grid::new();
+        for x in 0..MAX_X {
+            for y in 0..MAX_Y {
+                let src_cell = other.get_cell_mut(x, y).unwrap();
+                let dst_cell = grid.get_cell_mut(x, y).unwrap();
+
+                for z_level in 0..LAYERS {
+                    if let Some(item) = src_cell.take_item(z_level) {
+                        dst_cell.set_item(item);
+                    }
+                }
+            }
+        }
+        grid
     }
 }
 

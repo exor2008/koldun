@@ -6,6 +6,7 @@ extern crate alloc;
 
 pub mod initial;
 pub mod level;
+pub mod spell;
 pub mod start_menu;
 
 #[async_trait]

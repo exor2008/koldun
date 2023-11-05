@@ -1,4 +1,4 @@
-use crate::game::events::Event;
+use crate::game::events::{Buttons, Event, States};
 use crate::game::tiles::*;
 use crate::game::{MAX_X, MAX_Y};
 use crate::ili9486::Display;
@@ -16,7 +16,9 @@ pub mod grid;
 pub mod items;
 pub mod level1;
 
-pub struct Level2;
+pub enum Levels {
+    Level1,
+}
 
 pub struct Level<L> {
     grid: Grid,
@@ -42,13 +44,18 @@ impl<L> Level<L> {
         }
     }
 
-    pub async fn _on_event<D>(&mut self, event: Event, display: &mut D) -> bool
+    pub async fn _on_event<D>(&mut self, event: Event, display: &mut D) -> (bool, bool)
     where
         D: GameDisplay + Display<u8, Color = Rgb565> + Send,
     {
+        match event {
+            Event::Button(Buttons::Reset(States::Pressed)) => return (false, true),
+            _ => (),
+        }
+
         if self.block {
             match event {
-                Event::Button(_) => return false,
+                Event::Button(_) => return (false, false),
                 _ => (),
             }
         }
@@ -75,7 +82,7 @@ impl<L> Level<L> {
                 )
                 .await;
         }
-        is_win
+        (is_win, false)
     }
 }
 

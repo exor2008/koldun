@@ -10,7 +10,7 @@ use embassy_rp::bind_interrupts;
 use embassy_rp::flash::Flash as RPFlash;
 use embassy_rp::gpio::Pull;
 use embassy_rp::gpio::{Input, Level, Output};
-use embassy_rp::peripherals::{PIN_10, PIN_11, PIN_12, PIN_13, PIO0};
+use embassy_rp::peripherals::{PIN_10, PIN_11, PIN_12, PIN_13, PIN_26, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::channel::Channel;
@@ -62,6 +62,10 @@ async fn main(spawner: Spawner) {
     spawner.spawn(button_left_task(spawner, left)).unwrap();
     let right = Input::new(p.PIN_10, Pull::Down);
     spawner.spawn(button_right_task(spawner, right)).unwrap();
+    let reset_btn = Input::new(p.PIN_26, Pull::Down);
+    spawner
+        .spawn(button_reset_btn_task(spawner, reset_btn))
+        .unwrap();
     spawner.spawn(timer_task(spawner)).unwrap();
 
     // reset
@@ -250,6 +254,18 @@ async fn button_right_task(_spawner: Spawner, mut right: Input<'static, PIN_10>)
         let message = match right.is_high() {
             true => Event::Button(Buttons::Right(States::Pressed)),
             false => Event::Button(Buttons::Right(States::Released)),
+        };
+        CONTROL_CHANNEL.send(message).await
+    }
+}
+
+#[embassy_executor::task]
+async fn button_reset_btn_task(_spawner: Spawner, mut reset: Input<'static, PIN_26>) {
+    loop {
+        reset.wait_for_any_edge().await;
+        let message = match reset.is_high() {
+            true => Event::Button(Buttons::Reset(States::Pressed)),
+            false => Event::Button(Buttons::Reset(States::Released)),
         };
         CONTROL_CHANNEL.send(message).await
     }
