@@ -1,15 +1,20 @@
+use self::items::spell::Spell;
+use super::spell::{SpellCommands, MAX_COMMANDS};
 use crate::game::events::{Buttons, Event, States};
 use crate::game::tiles::*;
 use crate::game::{MAX_X, MAX_Y};
 use crate::ili9486::Display;
 use crate::ili9486::GameDisplay;
+use alloc::boxed::Box;
 use core::fmt::Write;
 use core::marker::PhantomData;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::Point;
 use grid::Grid;
 use hashbrown::HashMap;
-use heapless::String;
+use heapless::{String, Vec};
+
+extern crate alloc;
 
 pub mod actions;
 pub mod grid;
@@ -83,6 +88,25 @@ impl<L> Level<L> {
                 .await;
         }
         (is_win, false)
+    }
+
+    pub fn from_spell(grid: &mut Grid, commands: Vec<SpellCommands, MAX_COMMANDS>) -> Self {
+        let mut grid = Grid::new_from(grid);
+        let tiles: HashMap<usize, [u8; 32 * 32 * 2]> = HashMap::with_capacity(16);
+
+        if commands.len() > 0 {
+            let spell: Box<Spell> =
+                Box::new(Spell::new(Point::new(0, 0), 0, Tile::fence_id(), commands));
+
+            grid.set_item(0, 0, spell);
+        };
+
+        Self {
+            grid,
+            tiles,
+            block: Default::default(),
+            idx: Default::default(),
+        }
     }
 }
 

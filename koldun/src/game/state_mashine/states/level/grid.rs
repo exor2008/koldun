@@ -1,4 +1,5 @@
 use super::actions::{Action, Actions, MoveDestination, Pos, RedrawRequest, Target};
+use super::items::Kinds;
 use super::items::{sprite::StaticSprite, Drawable, Item, ItemTrait, MAX_ACTIONS_PER_EVENT};
 use crate::game::events::Event;
 use crate::game::{MAX_X, MAX_Y};
@@ -12,23 +13,23 @@ use heapless::Vec;
 
 extern crate alloc;
 
-const LAYERS: usize = 3;
+const LAYERS: usize = 2;
 pub const MAX_EVENTS: usize = 128;
 
 pub struct Cell {
-    coords: Point,
+    // coords: Point,
     items: Vec<Option<Box<dyn ItemTrait>>, LAYERS>,
 }
 
 impl Cell {
-    fn new(coords: Point) -> Self {
+    fn new() -> Self {
         let mut items: Vec<Option<Box<dyn ItemTrait>>, LAYERS> = Vec::new();
         for _ in 0..LAYERS {
             unsafe {
                 items.push_unchecked(None);
             }
         }
-        Cell { coords, items }
+        Cell { items }
     }
 
     fn new_static_sprite(coords: Point, img_id: usize, z_order: usize) -> Self {
@@ -51,7 +52,7 @@ impl Cell {
                 items.push_unchecked(None);
             }
         }
-        Cell { coords, items }
+        Cell { items }
     }
 
     pub fn set_item(&mut self, item: Box<dyn ItemTrait>) {
@@ -71,6 +72,17 @@ impl Cell {
         let items: Vec<&Option<Box<dyn ItemTrait>>, LAYERS> =
             self.items.iter().filter(|item| item.is_some()).collect();
         items.len()
+    }
+
+    fn find_kind(&self, kind: Kinds) -> Option<Target> {
+        for item in self.items.iter() {
+            if let Some(item) = item {
+                if item.kind() == kind {
+                    return Some(item.target());
+                }
+            }
+        }
+        None
     }
 
     fn on_event(&mut self, event: &Event) -> Vec<Action, MAX_EVENTS> {
@@ -95,7 +107,7 @@ impl Cell {
 
 impl Default for Cell {
     fn default() -> Self {
-        Cell::new(Point::default())
+        Cell::new()
     }
 }
 
@@ -186,6 +198,37 @@ impl Grid {
                     add_to_redraw!(to_redraw, request);
                 }
 
+                // Initialize spell
+                Action {
+                    target: _,
+                    action: Actions::InitSpell(dest),
+                } => {
+                    if let Some(mut target) = self.find_kind(Kinds::Wizard) {
+                        // info!("wizard found in {}", target);
+                        match dest {
+                            MoveDestination::Up => target.y -= 1,
+                            MoveDestination::Down => target.y += 1,
+                            MoveDestination::Left => target.x -= 1,
+                            MoveDestination::Right => target.x += 1,
+                        }
+
+                        let init_cell = self.get_cell_mut(0, 0).unwrap();
+                        // info!("items in 0 0 : {}", init_cell.get_items_len());
+                        let mut spell = init_cell.take_item(0).unwrap();
+
+                        if let Some(cell) = self.get_cell_mut(target.x, target.y) {
+                            if !cell.has_item(target.z) {
+                                spell.set_x(target.x);
+                                spell.set_y(target.y);
+                                spell.set_z(target.z);
+                                cell.set_item(spell);
+                                let request = RedrawRequest::new(target);
+                                add_to_redraw!(to_redraw, request);
+                            }
+                        }
+                    }
+                }
+
                 // Block control events
                 Action {
                     target: _,
@@ -210,6 +253,12 @@ impl Grid {
 
     pub fn tile_id(&self, x: usize, y: usize) -> usize {
         self.0[y][x].tile_id()
+    }
+
+    pub fn set_item(&mut self, x: usize, y: usize, item: Box<dyn ItemTrait>) {
+        if let Some(cell) = self.get_cell_mut(x, y) {
+            cell.set_item(item);
+        }
     }
 
     fn move_item(&mut self, src: Target, dest: MoveDestination) -> Result<Target, CellError> {
@@ -268,6 +317,13 @@ impl Grid {
         }
     }
 
+    fn get_cell_ref(&self, x: usize, y: usize) -> Option<&Cell> {
+        match self.in_bound(x, y) {
+            true => Some(&self.0[y][x]),
+            false => None,
+        }
+    }
+
     fn get_cell_items_len(&mut self, x: usize, y: usize) -> usize {
         if let Some(cell) = self.get_cell_mut(x, y) {
             let items: Vec<&Option<Box<dyn ItemTrait>>, LAYERS> =
@@ -276,6 +332,18 @@ impl Grid {
         } else {
             0
         }
+    }
+
+    fn find_kind(&self, kind: Kinds) -> Option<Target> {
+        for x in 0..MAX_X {
+            for y in 0..MAX_Y {
+                let src_cell = self.get_cell_ref(x, y).unwrap();
+                if let Some(target) = src_cell.find_kind(kind) {
+                    return Some(target);
+                }
+            }
+        }
+        None
     }
 
     pub fn new_from(other: &mut Grid) -> Self {

@@ -3,10 +3,11 @@ use super::{Grid, Level, Levels};
 use crate::game::colors::*;
 use crate::game::events::Event;
 use crate::game::flash::Flash;
-use crate::game::state_mashine::states::spell::Spell;
+use crate::game::state_mashine::states::spell::{Spell, SpellCommands, MAX_COMMANDS};
 use crate::game::state_mashine::states::State;
 use crate::game::tiles::Tile;
 use crate::game::{MAX_X, MAX_Y};
+use crate::heap;
 use crate::ili9486::{Display, GameDisplay};
 use alloc::boxed::Box;
 use async_trait::async_trait;
@@ -22,7 +23,7 @@ pub struct Level1;
 impl Level<Level1> {
     pub fn new() -> Self {
         let level: [[usize; MAX_X]; MAX_Y] = [
-            [0, 0, 0, 0, 36, 0, 0, 0, 0, 38, 0, 0, 0, 0, 0],
+            [50, 0, 0, 0, 36, 0, 0, 0, 0, 38, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 37, 0, 0, 0, 0, 36, 0, 0, 0, 0, 0],
             [0, 0, 0, 0, 38, 0, 0, 0, 0, 36, 0, 0, 0, 0, 0],
             [42, 0, 0, 0, 36, 0, 0, 0, 0, 37, 0, 0, 0, 0, 0],
@@ -34,7 +35,7 @@ impl Level<Level1> {
             [42, 43, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 50, 51, 50],
         ];
 
-        let tiles: HashMap<usize, [u8; 32 * 32 * 2]> = HashMap::with_capacity(24);
+        let tiles: HashMap<usize, [u8; 32 * 32 * 2]> = HashMap::with_capacity(16);
 
         ///////////
         let mut grid: Grid = level.into();
@@ -49,18 +50,6 @@ impl Level<Level1> {
         ///////////
 
         Level {
-            grid: grid,
-            tiles,
-            block: Default::default(),
-            idx: Default::default(),
-        }
-    }
-
-    pub fn from_grid(grid: &mut Grid) -> Self {
-        let grid = Grid::new_from(grid);
-        let tiles: HashMap<usize, [u8; 32 * 32 * 2]> = HashMap::with_capacity(24);
-
-        Self {
             grid,
             tiles,
             block: Default::default(),
@@ -88,7 +77,11 @@ where
         }
 
         match is_spell {
-            true => Some(Box::new(Spell::from_grid(&mut self.grid, Levels::Level1))),
+            true => {
+                // self.tiles.clear();
+                // self.tiles.shrink_to_fit();
+                Some(Box::new(Spell::from_grid(&mut self.grid, Levels::Level1)))
+            }
             false => None,
         }
     }
@@ -134,6 +127,7 @@ where
             Tile::wizard_idle1_id(),
             Tile::wizard_idle1(WIZARD_FG, WALL_BG),
         );
+
         self.tiles.insert(
             Tile::wizard_idle2_id(),
             Tile::wizard_idle2(WIZARD_FG, WALL_BG),
@@ -173,6 +167,9 @@ where
             Tile::exit_closed_id(),
             Tile::exit_closed(WIZARD_FG, WALL_BG),
         );
+
+        self.tiles
+            .insert(Tile::fence_id(), Tile::fence(WIZARD_FG, WALL_BG));
 
         self.redraw_all(display).await
     }

@@ -18,6 +18,7 @@ pub enum Actions {
     RedrawAnim(i8, i8, Target),
     Redraw,
     Block(bool),
+    InitSpell(MoveDestination),
     Win,
 }
 

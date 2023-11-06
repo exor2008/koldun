@@ -9,10 +9,19 @@ use heapless::Vec;
 extern crate alloc;
 
 pub mod exit;
+pub mod spell;
 pub mod sprite;
 pub mod wizard;
 
 pub const MAX_ACTIONS_PER_EVENT: usize = 3;
+
+#[derive(PartialEq, Clone, Copy)]
+pub enum Kinds {
+    Sprite,
+    Wizard,
+    Spell,
+    Exit,
+}
 
 pub trait OnEvent {
     fn on_event(&mut self, _event: &Event) -> Vec<Action, MAX_ACTIONS_PER_EVENT> {
@@ -34,6 +43,10 @@ pub trait Drawable {
 
 pub trait ZLevel {
     fn z_level(&self) -> usize;
+}
+
+pub trait Kind {
+    fn kind(&self) -> Kinds;
 }
 
 pub trait Coord<const MAX_X: usize, const MAX_Y: usize> {
@@ -70,9 +83,14 @@ pub trait Coord<const MAX_X: usize, const MAX_Y: usize> {
     fn set_y(&mut self, y: usize) {
         self.coords_mut().y = y as i32
     }
+
+    fn set_z(&mut self, z: usize);
 }
 
-pub trait ItemTrait: OnEvent + OnReaction + Coord<MAX_X, MAX_Y> + Drawable + ZLevel + Send {}
+pub trait ItemTrait:
+    OnEvent + OnReaction + Coord<MAX_X, MAX_Y> + Drawable + ZLevel + Send + Kind
+{
+}
 
 pub struct Item<I> {
     z_order: usize,
@@ -96,6 +114,10 @@ impl<I> Coord<MAX_X, MAX_Y> for Item<I> {
 
     fn target(&self) -> Target {
         Target::new(self.coords.x as usize, self.coords.y as usize, self.z_order)
+    }
+
+    fn set_z(&mut self, z: usize) {
+        self.z_order = z
     }
 }
 

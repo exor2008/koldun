@@ -1,5 +1,6 @@
 use super::{
-    Action, Actions, Coord, Item, ItemTrait, OnEvent, OnReaction, Who, MAX_ACTIONS_PER_EVENT,
+    Action, Actions, Coord, Item, ItemTrait, Kind, Kinds, OnEvent, OnReaction, Who,
+    MAX_ACTIONS_PER_EVENT,
 };
 use crate::{game::events::Event, h_vec};
 use heapless::Vec;
@@ -30,5 +31,11 @@ impl OnReaction for Item<Exit> {
             } => self.is_win = true,
             _ => (),
         }
+    }
+}
+
+impl Kind for Item<Exit> {
+    fn kind(&self) -> Kinds {
+        Kinds::Exit
     }
 }

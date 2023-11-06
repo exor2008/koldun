@@ -14,18 +14,37 @@ use alloc::boxed::Box;
 use async_trait::async_trait;
 use defmt::info;
 use embedded_graphics::{pixelcolor::Rgb565, prelude::Point};
+use heapless::Vec;
 
 extern crate alloc;
+
+pub const MAX_COMMANDS: usize = 32;
+
+#[derive(Clone, defmt::Format, Debug)]
+pub enum SpellCommands {
+    Left,
+    Right,
+    Up,
+    Down,
+    In,
+    Out,
+}
 
 pub struct Spell {
     grid: Grid,
     level: Levels,
+    commands: Vec<SpellCommands, MAX_COMMANDS>,
 }
 
 impl Spell {
     pub fn from_grid(grid: &mut Grid, level: Levels) -> Self {
         let grid = Grid::new_from(grid);
-        Spell { grid, level }
+        let commands: Vec<SpellCommands, MAX_COMMANDS> = Vec::new();
+        Spell {
+            grid,
+            level,
+            commands,
+        }
     }
 }
 
@@ -36,10 +55,18 @@ where
     F: Flash + Send + Sync,
 {
     async fn on_event(&mut self, event: Event, _display: &mut D) -> Option<Box<dyn State<D, F>>> {
+        let mut commands: Vec<SpellCommands, MAX_COMMANDS> =
+            Vec::from_slice(self.commands.as_slice()).unwrap();
+
+        commands.push(SpellCommands::Right).unwrap();
+
         match event {
             Event::Button(Buttons::Reset(States::Pressed)) => match self.level {
                 Levels::Level1 => {
-                    return Some(Box::new(Level::<Level1>::from_grid(&mut self.grid)))
+                    return Some(Box::new(Level::<Level1>::from_spell(
+                        &mut self.grid,
+                        commands,
+                    )));
                 }
             },
             _ => return None,

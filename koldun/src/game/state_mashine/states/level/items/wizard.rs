@@ -1,4 +1,7 @@
-use super::{Action, Actions, Coord, Item, ItemTrait, OnEvent, OnReaction, MAX_ACTIONS_PER_EVENT};
+use super::{
+    Action, Actions, Coord, Item, ItemTrait, Kind, Kinds, OnEvent, OnReaction,
+    MAX_ACTIONS_PER_EVENT,
+};
 use crate::game::events::{Buttons, Event, States};
 use crate::game::state_mashine::states::level::actions::{MoveDestination, Who};
 use crate::game::tiles::{Tile, TILE_SIZE_X, TILE_SIZE_Y};
@@ -289,6 +292,12 @@ impl OnReaction for Item<Wizard> {
             }
             _ => (),
         }
+    }
+}
+
+impl Kind for Item<Wizard> {
+    fn kind(&self) -> Kinds {
+        Kinds::Wizard
     }
 }
 
