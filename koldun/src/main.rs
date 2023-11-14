@@ -14,7 +14,7 @@ use embassy_rp::peripherals::{PIN_10, PIN_11, PIN_12, PIN_13, PIN_26, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::channel::Channel;
-use embassy_time::{Duration, Ticker, Timer};
+use embassy_time::{Duration, Instant, Ticker, Timer};
 
 use embedded_graphics::primitives::Rectangle;
 use embedded_graphics::text::DecorationColor;
@@ -44,6 +44,7 @@ bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
 });
 
+const RATTLE_THRESHOLD: u64 = 100;
 static CONTROL_CHANNEL: Channel<ThreadModeRawMutex, Event, 1> = Channel::new();
 
 #[embassy_executor::main]
@@ -225,8 +226,17 @@ async fn button_up_task(_spawner: Spawner, mut up: Input<'static, PIN_13>) {
 
 #[embassy_executor::task]
 async fn button_down_task(_spawner: Spawner, mut down: Input<'static, PIN_12>) {
+    let mut last_press = Instant::now();
+
     loop {
         down.wait_for_any_edge().await;
+
+        let now = Instant::now();
+        if (now - last_press).as_millis() < RATTLE_THRESHOLD {
+            continue;
+        }
+        last_press = now;
+
         let message = match down.is_high() {
             true => Event::Button(Buttons::Down(States::Pressed)),
             false => Event::Button(Buttons::Down(States::Released)),
@@ -237,8 +247,17 @@ async fn button_down_task(_spawner: Spawner, mut down: Input<'static, PIN_12>) {
 
 #[embassy_executor::task]
 async fn button_left_task(_spawner: Spawner, mut left: Input<'static, PIN_11>) {
+    let mut last_press = Instant::now();
+
     loop {
         left.wait_for_any_edge().await;
+
+        let now = Instant::now();
+        if (now - last_press).as_millis() < RATTLE_THRESHOLD {
+            continue;
+        }
+        last_press = now;
+
         let message = match left.is_high() {
             true => Event::Button(Buttons::Left(States::Pressed)),
             false => Event::Button(Buttons::Left(States::Released)),
@@ -249,8 +268,16 @@ async fn button_left_task(_spawner: Spawner, mut left: Input<'static, PIN_11>) {
 
 #[embassy_executor::task]
 async fn button_right_task(_spawner: Spawner, mut right: Input<'static, PIN_10>) {
+    let mut last_press = Instant::now();
     loop {
         right.wait_for_any_edge().await;
+
+        let now = Instant::now();
+        if (now - last_press).as_millis() < RATTLE_THRESHOLD {
+            continue;
+        }
+        last_press = now;
+
         let message = match right.is_high() {
             true => Event::Button(Buttons::Right(States::Pressed)),
             false => Event::Button(Buttons::Right(States::Released)),
@@ -261,8 +288,17 @@ async fn button_right_task(_spawner: Spawner, mut right: Input<'static, PIN_10>)
 
 #[embassy_executor::task]
 async fn button_reset_btn_task(_spawner: Spawner, mut reset: Input<'static, PIN_26>) {
+    let mut last_press = Instant::now();
+
     loop {
         reset.wait_for_any_edge().await;
+
+        let now = Instant::now();
+        if (now - last_press).as_millis() < RATTLE_THRESHOLD {
+            continue;
+        }
+        last_press = now;
+
         let message = match reset.is_high() {
             true => Event::Button(Buttons::Reset(States::Pressed)),
             false => Event::Button(Buttons::Reset(States::Released)),
